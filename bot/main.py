@@ -4,7 +4,7 @@ from aiohttp import web
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from bot.database.session import init_db
 
-# Импорты проекта
+
 from .create_bot import bot, dp, ADMIN_ID
 from .routers import router
 

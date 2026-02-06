@@ -11,7 +11,8 @@ router = Router()
 @router.message(Command("start"))
 async def cmd_start(message: types.Message, session: AsyncSession):
     await message.answer(
-        "Приветствуем!",
+        "<b>Я — AI-компаньон для эмоциональной поддержки и регулярного общения</b>\n\n"
+        "<i>Я не психолог и не заменяю людей, но могу быть рядом и поддерживать тебя каждый день</i>",
         reply_markup=start_menu
     )
         
