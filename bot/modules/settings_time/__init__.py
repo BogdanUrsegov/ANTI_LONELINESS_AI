@@ -3,11 +3,8 @@ from aiogram import Router
 
 
 router = Router()
-
-
-router.include_router(handlers_router)
-
+router.include_routers(handlers_router)
 
 __all__ = [
-    "router"
-]
+        "router"
+    ]

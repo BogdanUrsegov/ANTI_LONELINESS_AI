@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, DateTime, BigInteger
+from sqlalchemy import Integer, DateTime, BigInteger, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import datetime
@@ -17,3 +17,7 @@ class User(Base):
         server_default=func.now(),
         nullable=False
     )
+    name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    archetype: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    hard_time: Mapped[str | None] = mapped_column(String(50), nullable=True)  # или String, если коротко
+    main_topic: Mapped[str | None] = mapped_column(String(50), nullable=True)
