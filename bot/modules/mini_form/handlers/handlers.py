@@ -1,6 +1,7 @@
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from aiogram.enums import ChatAction
 from ..states.states import UserNameState, WorryState
 from bot.database.utils.update_user_field import update_user_fields
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,8 +41,21 @@ async def process_hard_time(callback: CallbackQuery, state: FSMContext):
 
     await state.update_data(hard_time=hard_time_key)
 
-    # Удаляем кнопки из предыдущего сообщения
+    await callback.message.edit_reply_markup()
+
+    opt = {
+        MORNING_CALL: "🌅 Утро",
+        DAY_CALL: "🌞 День",
+        EVENING_CALL: "🌆 Вечер",
+        NIGHT_CALL: "🌙 Ночь"
+    }.get(callback.data) or ""
     await callback.message.edit_text(
+        f"{callback.message.html_text}\n\n"
+
+        f"<b>{opt}</b>"
+        )
+
+    await callback.message.answer(
         "💭 <b>Что сейчас беспокоит тебя больше всего?</b>\n\n"
         "Можешь выбрать из списка или написать своё:",
         reply_markup=worry_keyboard
@@ -68,17 +82,34 @@ async def _completion_onboarding(message: Message, state: FSMContext, worry: str
         hard_time=hard_time,
         main_topic=worry
         )
-    response = await get_ai_response(
-f"""Сгенерируй персональное сообщение от Telegram-бота эмоционального сопровождения для {name} с переживаниями {worry}, например:
+    temp_mess = await message.answer("⏳ Пожалуйста, дай мне время обдумать...")
+    await message.bot.send_chat_action(
+        chat_id=message.chat.id,
+        action=ChatAction.TYPING
+    )
 
-Спасибо, что рассказал(а) мне это, {name}.
+    text_pattern = (
+            f"Спасибо, что рассказал(а) мне это, {name}.\n\n"
 
-Я буду рядом с тобой, особенно в те моменты, когда тебе труднее всего — {hard_time}.
+            f"Я буду рядом с тобой, особенно в те моменты, когда тебе труднее всего — {hard_time}.\n\n"
 
-Ты можешь писать мне в любой момент.
-А я буду иногда писать тебе сам.""")
-    
-    await message.answer(response["content"], reply_markup=set_settings_keyboard)
+            "Ты можешь писать мне в любой момент.\n"
+            "А я буду иногда писать тебе сам."
+        )
+    try:
+        response = await get_ai_response(
+            f"Сгенерируй персональное сообщение от Telegram-бота эмоционального сопровождения для {name} с переживаниями {worry}, например:"
+
+            f"{text_pattern}")
+    except Exception as e:
+        print(f"Error getting AI response: {e}")
+        response = text_pattern
+
+    if response:
+        await temp_mess.edit_text(response, reply_markup=set_settings_keyboard)
+    else:
+        await temp_mess.edit_text(text_pattern, reply_markup=set_settings_keyboard)
+        
     await state.clear()
 
 @router.callback_query(
@@ -98,6 +129,12 @@ async def process_worry_choice(callback: CallbackQuery, state: FSMContext, sessi
         DISCIPLINE_CALL: "Дисциплина",
     }
     worry = worry_mapping[callback.data]
+
+    await callback.message.edit_text(
+        f"{callback.message.html_text}\n\n"
+
+        f"🛟 <b>{worry}</b>"
+    )
 
     await _completion_onboarding(message=callback.message, state=state, worry=worry, session=session)
 

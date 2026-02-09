@@ -22,3 +22,9 @@ what_can_kb = InlineKeyboardMarkup(
 start_menu = InlineKeyboardMarkup(
     inline_keyboard=continue_kb.inline_keyboard + what_can_kb.inline_keyboard
 )
+
+fill_again_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="🔁 Заполнить данные", callback_data=FURTHER_CALL)]
+    ]
+)

@@ -6,3 +6,4 @@ sqlalchemy[asyncio]==2.0.30
 redis==7.1.0
 asyncpg
 openai
+aioredis

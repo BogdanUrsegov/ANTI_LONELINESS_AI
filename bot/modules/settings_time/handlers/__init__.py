@@ -1,9 +1,9 @@
-from .callbacks import router as callbacks_router
+from .handlers import router as handlers_router
 from aiogram import Router
 
 
 router = Router()
-router.include_routers(callbacks_router)
+router.include_routers(handlers_router)
 
 __all__ = [
         "router"

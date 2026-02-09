@@ -1,5 +1,7 @@
 from aiogram.types import CallbackQuery
 from aiogram import F, Router
+
+from bot.scheduled_messages import RedisMessageScheduler
 from ..keyboards.inline_keyboards import FURTHER_CALL, WHAT_CAN_CALL, continue_kb
 
 
@@ -7,7 +9,7 @@ router = Router()
 
 
 @router.callback_query(F.data == WHAT_CAN_CALL)
-async def what_call_handler(callback: CallbackQuery):
+async def what_call_handler(callback: CallbackQuery, scheduler: RedisMessageScheduler):
     await callback.message.edit_reply_markup()
     await callback.message.answer(
         "<b>Я могу:</b>\n\n"

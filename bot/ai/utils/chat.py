@@ -31,7 +31,4 @@ async def get_ai_response(
     message = response.choices[0].message
     
     # OpenRouter может не всегда возвращать reasoning_details — проверяем
-    return {
-        "content": message.content or "",
-        "reasoning_details": getattr(message, "reasoning_details", None)
-    }
+    return message.content

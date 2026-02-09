@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.pyc
+test.py
 .env
 venv/
 .env.local

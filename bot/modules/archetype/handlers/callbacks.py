@@ -15,6 +15,12 @@ router = Router()
 @router.callback_query(F.data == ADULT_CALL)
 async def adult_handler(callback: CallbackQuery):
     await callback.message.edit_reply_markup()
+    await callback.message.edit_text(
+        f"{callback.message.html_text}\n\n"
+
+        "✅ <b>Есть 18 лет</b>"
+    ) 
+    
     await callback.message.answer(
         "<b>Какой формат общения тебе сейчас ближе?</b>\n\n"
 
@@ -37,6 +43,11 @@ async def archetype_handler(callback: CallbackQuery, state: FSMContext, session:
         CALM_MENTOR_CALL: "Спокойный наставник",
         FRIENDLY_LIGHT_CALL: "Дружелюбный и лёгкий"
         }[callback.data]
+    await callback.message.edit_text(
+        f"{callback.message.html_text}\n\n"
+
+        f"🗣 <b>{field_value}</b>"
+    ) 
     await update_user_fields(
         session=session,
         telegram_id=callback.from_user.id,

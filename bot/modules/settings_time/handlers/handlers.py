@@ -1,13 +1,20 @@
+import asyncio
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from bot.scheduled_messages import RedisMessageScheduler
+from bot.modules.main_menu import goto_main_menu_kb
 from ..states.states import NotificationSettings
+
 from ..keyboards.inline_keyboards import (
     morning_setting_keyboard,
     evening_setting_keyboard,
     day_touches_keyboard,
     morning_time_keyboard
 )
+
 from ..keyboards.inline_keyboards import (
     MORNING_ENABLED_CALL, MORNING_DISABLED_CALL,
     EVENING_ENABLED_CALL, EVENING_DISABLED_CALL,
@@ -15,6 +22,7 @@ from ..keyboards.inline_keyboards import (
     MORNING_TIME_7_CALL, MORNING_TIME_8_CALL, MORNING_TIME_10_CALL
 )
 
+from bot.database.utils.update_user_field import update_user_fields
 from bot.modules.mini_form import SET_SETTINGS_CALL
 
 router = Router()
@@ -46,7 +54,7 @@ async def morning_enabled(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         f"{callback.message.html_text}\n\n"
 
-        f"{opt}"
+        f"<b>{opt}</b>"
         )
     
     await callback.message.answer("📌 <b>Выбери удобное утреннее время:</b>", reply_markup=morning_time_keyboard)
@@ -100,16 +108,16 @@ async def evening_disabled(callback: CallbackQuery, state: FSMContext):
 
 # --- Дневные касания ---
 @router.callback_query(NotificationSettings.day_touches_choice, F.data == DAY_TOUCHES_ENABLED_CALL)
-async def day_touches_enabled(callback: CallbackQuery, state: FSMContext):
+async def day_touches_enabled(callback: CallbackQuery, state: FSMContext, session: AsyncSession, scheduler: RedisMessageScheduler):
     await state.update_data(day_touches=True)
-    await _finish_setup(callback, state)
+    await _finish_setup(callback, state, session, scheduler)
     await callback.answer()
 
 
 @router.callback_query(NotificationSettings.day_touches_choice, F.data == DAY_TOUCHES_DISABLED_CALL)
-async def day_touches_disabled(callback: CallbackQuery, state: FSMContext):
+async def day_touches_disabled(callback: CallbackQuery, state: FSMContext, session: AsyncSession, scheduler: RedisMessageScheduler):
     await state.update_data(day_touches=False)
-    await _finish_setup(callback, state)
+    await _finish_setup(callback, state, session, scheduler)
     await callback.answer()
 
 
@@ -128,7 +136,7 @@ async def _ask_evening(callback: CallbackQuery, state: FSMContext):
     await message.edit_text(
         f"{message.html_text}\n\n"
 
-        f"{opt}"
+        f"<b>{opt}</b>"
         )
     
     await message.answer(
@@ -150,7 +158,7 @@ async def _ask_day_touches(callback: CallbackQuery, state: FSMContext):
     await message.edit_text(
         f"{message.html_text}\n\n"
 
-        f"{opt}"
+        f"<b>{opt}</b>"
         )
     
     await message.answer(
@@ -162,7 +170,7 @@ async def _ask_day_touches(callback: CallbackQuery, state: FSMContext):
     await state.set_state(NotificationSettings.day_touches_choice)
 
 
-async def _finish_setup(callback: CallbackQuery, state: FSMContext):
+async def _finish_setup(callback: CallbackQuery, state: FSMContext, session: AsyncSession, scheduler: RedisMessageScheduler):
     data = await state.get_data()
     message = callback.message
     callback_data = callback.data
@@ -174,15 +182,37 @@ async def _finish_setup(callback: CallbackQuery, state: FSMContext):
     await message.edit_text(
         f"{message.html_text}\n\n"
 
-        f"{opt}"
+        f"<b>{opt}</b>"
     )
 
+    await update_user_fields(
+        session=session,
+        telegram_id=callback.from_user.id,
+        notify_morning=data.get("morning_enabled"),
+        notify_morning_time=data.get("morning_time"),
+        notify_evening=data.get("evening_enabled"),
+        notify_day_touches=data.get("day_touches")
+    )
     await message.answer(
         "✅ <b>Настройки сохранены!</b>\n\n"
-        f"🌅 Утро: {'Вкл' if data.get('morning_enabled') else 'Выкл'} "
-        f"{data.get('morning_time') if data.get('morning_time') else ''}\n"
-        f"🌃 Вечер: {'Вкл' if data.get('evening_enabled') else 'Выкл'}\n"
-        f"☀️ Днём: {'Иногда' if data.get('day_touches') else 'Не нужно'}\n\n"
-        "Теперь я буду писать только тогда, когда тебе комфортно 💛"
+        
+        "<i>Спасибо, что сказал мне, когда тебе удобно писать!</i>"
     )
+
     await state.clear()
+
+    await asyncio.sleep(0.2)
+
+    await message.answer(
+        "<b>🎯 Ты в деле!</b>\n\n"
+        "<i>Все подготовительные шаги позади — добро пожаловать в основной функционал!</i>",
+        reply_markup=goto_main_menu_kb
+    )
+
+    user_id = callback.from_user.id
+    await scheduler.schedule_message(
+        chat_id=user_id,
+        text="Это запланированное сообщение через 2 минуты",
+        delay_seconds=2*60,
+        user_id=user_id
+    )
