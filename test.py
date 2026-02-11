@@ -1,41 +1,23 @@
-from openai import OpenAI
+# test_openai.py
+import asyncio
+import os
+from openai import AsyncOpenAI
 
-client = OpenAI(
-  base_url="https://openrouter.ai/api/v1",
-  api_key="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",
+
+OPENROUTER_API_KEY = "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"
+client = AsyncOpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY"),
 )
 
-# First API call with reasoning
-response = client.chat.completions.create(
-    model="stepfun/step-3.5-flash:free",
-    messages=[
-                {
-                    "role": "user",
-                    "content": "напиши стих про осень и березу"
-                }
-            ],
-    extra_body={"reasoning": {"enabled": True}}
-)
+async def main():
+    resp = await client.chat.completions.create(
+        model="stepfun/step-3.5-flash:free",
+        messages=[
+            {"role": "system", "content": "Ответь 'OK'"},
+            {"role": "user", "content": "Привет"}
+        ]
+    )
+    print(resp.choices[0].message.content)
 
-# Extract the assistant message with reasoning_details
-response = response.choices[0].message
-print(response.content)  # Assistant's response
-"""
-# Preserve the assistant message with reasoning_details
-messages = [
-  {"role": "user", "content": "How many r's are in the word 'strawberry'?"},
-  {
-    "role": "assistant",
-    "content": response.content,
-    "reasoning_details": response.reasoning_details  # Pass back unmodified
-  },
-  {"role": "user", "content": "Are you sure? Think carefully."}
-]
-
-# Second API call - model continues reasoning from where it left off
-response2 = client.chat.completions.create(
-  model="stepfun/step-3.5-flash:free",
-  messages=messages,
-  extra_body={"reasoning": {"enabled": True}}
-)
-"""
+asyncio.run(main())

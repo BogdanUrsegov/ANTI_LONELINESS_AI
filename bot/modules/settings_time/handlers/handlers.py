@@ -191,7 +191,8 @@ async def _finish_setup(callback: CallbackQuery, state: FSMContext, session: Asy
         notify_morning=data.get("morning_enabled"),
         notify_morning_time=data.get("morning_time"),
         notify_evening=data.get("evening_enabled"),
-        notify_day_touches=data.get("day_touches")
+        notify_day_touches=data.get("day_touches"),
+        is_complete=True
     )
     await message.answer(
         "✅ <b>Настройки сохранены!</b>\n\n"

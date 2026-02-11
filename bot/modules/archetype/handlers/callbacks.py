@@ -33,11 +33,6 @@ async def adult_handler(callback: CallbackQuery):
 @router.callback_query(F.data.in_([WARM_SUPPORTIVE_CALL, CALM_MENTOR_CALL, FRIENDLY_LIGHT_CALL]))
 async def archetype_handler(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
     await callback.message.edit_reply_markup()
-    await callback.message.answer(
-        "<b>Отлично! Давай начнем знакомство с тобой</b>\n\n"
-
-        "<i>Какое у тебя имя?</i>"
-    )
     field_value = {
         WARM_SUPPORTIVE_CALL: "Тёплый и поддерживающий",
         CALM_MENTOR_CALL: "Спокойный наставник",
@@ -52,6 +47,11 @@ async def archetype_handler(callback: CallbackQuery, state: FSMContext, session:
         session=session,
         telegram_id=callback.from_user.id,
         archetype=field_value
+    )
+    await callback.message.answer(
+        "<b>Отлично! Давай начнем знакомство с тобой</b>\n\n"
+
+        "<i>Какое у тебя имя?</i>"
     )
     await state.set_state(UserNameState.waiting_for_name)
     await callback.answer()

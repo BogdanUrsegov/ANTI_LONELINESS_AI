@@ -1,6 +1,7 @@
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+import logging
 from aiogram.enums import ChatAction
 from ..states.states import UserNameState, WorryState
 from bot.database.utils.update_user_field import update_user_fields
@@ -13,6 +14,8 @@ from ..keyboards.inline_keyboards import (
     DISCIPLINE_CALL, OTHER_CALL
 )
 
+
+logging.getLogger(__name__)
 router = Router()
 
 # --- Шаг 1: Имя ---
@@ -65,7 +68,7 @@ async def process_hard_time(callback: CallbackQuery, state: FSMContext):
 
 # --- Шаг 3: Выбор беспокойства (готовые варианты) ---
 
-async def _completion_onboarding(message: Message, state: FSMContext, worry: str, session: AsyncSession):
+async def _completion_onboarding(message: Message, state: FSMContext, telegram_id: int, worry: str, session: AsyncSession):
     data = await state.get_data()
     name = data["name"]
     hard_time = {
@@ -75,13 +78,16 @@ async def _completion_onboarding(message: Message, state: FSMContext, worry: str
         "night": "Ночь",
     }.get(data["hard_time"], data["hard_time"])
 
-    await update_user_fields(
+    logging.debug(f"Данные для записи: {name}, {hard_time}, {worry}")
+
+    res = await update_user_fields(
         session=session,
-        telegram_id=message.from_user.id,
+        telegram_id=telegram_id,
         name=name,
         hard_time=hard_time,
         main_topic=worry
         )
+    logging.debug(f"Результат записи данных из мини формы в бд: {res}")
     temp_mess = await message.answer("⏳ Пожалуйста, дай мне время обдумать...")
     await message.bot.send_chat_action(
         chat_id=message.chat.id,
@@ -96,17 +102,19 @@ async def _completion_onboarding(message: Message, state: FSMContext, worry: str
             "Ты можешь писать мне в любой момент.\n"
             "А я буду иногда писать тебе сам."
         )
+    response_content = ""
     try:
         response = await get_ai_response(
             f"Сгенерируй персональное сообщение от Telegram-бота эмоционального сопровождения для {name} с переживаниями {worry}, например:"
 
             f"{text_pattern}")
+        response_content = response.content
     except Exception as e:
         print(f"Error getting AI response: {e}")
-        response = text_pattern
+        response_content = text_pattern
 
-    if response:
-        await temp_mess.edit_text(response, reply_markup=set_settings_keyboard)
+    if response_content:
+        await temp_mess.edit_text(response_content, reply_markup=set_settings_keyboard)
     else:
         await temp_mess.edit_text(text_pattern, reply_markup=set_settings_keyboard)
         
@@ -122,6 +130,7 @@ async def _completion_onboarding(message: Message, state: FSMContext, worry: str
 async def process_worry_choice(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
     await callback.message.edit_reply_markup()
     await callback.answer()
+    telegram_id = callback.from_user.id
     worry_mapping = {
         LONELINESS_CALL: "Одиночество",
         ANXIETY_CALL: "Тревога",
@@ -136,7 +145,7 @@ async def process_worry_choice(callback: CallbackQuery, state: FSMContext, sessi
         f"🛟 <b>{worry}</b>"
     )
 
-    await _completion_onboarding(message=callback.message, state=state, worry=worry, session=session)
+    await _completion_onboarding(message=callback.message, state=state, telegram_id=telegram_id, worry=worry, session=session)
 
 
 # --- Шаг 3: "Другое" → ожидание текста ---
@@ -153,9 +162,10 @@ async def process_worry_other(callback: CallbackQuery, state: FSMContext):
 # --- Обработка кастомного текста ---
 @router.message(WorryState.entering_custom_worry)
 async def process_custom_worry(message: Message, state: FSMContext, session: AsyncSession):
+    telegram_id = message.from_user.id
     custom_worry = message.text.strip()
     if not custom_worry:
         await message.answer("🫤 Пожалуйста, напиши, что тебя тревожит.")
         return
 
-    await _completion_onboarding(message=message, state=state, worry=custom_worry, session=session)
+    await _completion_onboarding(message=message, state=state, telegram_id=telegram_id, worry=custom_worry, session=session)

@@ -1,9 +1,12 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import NoResultFound
+import logging
 
 from bot.database.models import User
 
+
+logging.getLogger(__name__)
 
 async def update_user_fields(
     session: AsyncSession,
@@ -41,5 +44,6 @@ async def update_user_fields(
         await session.commit()
         return True
 
-    except NoResultFound:
+    except NoResultFound as e:
+        logging.debug(e)
         return False
