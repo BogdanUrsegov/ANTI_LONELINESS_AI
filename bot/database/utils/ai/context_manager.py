@@ -35,7 +35,7 @@ async def save_message(
 ) -> None:
     """Сохраняет сообщение в PostgreSQL."""
     msg = ChatMessage(
-        telegram_id=telegram_id,  # ← ИСПРАВЛЕНО: telegram_id вместо user_id
+        telegram_id=telegram_id,
         role=role,
         content=content,
         reasoning_details=reasoning_details,

@@ -25,7 +25,7 @@ hard_time_keyboard = InlineKeyboardMarkup(
             InlineKeyboardButton(text="☀️ День", callback_data=DAY_CALL),
         ],
         [
-            InlineKeyboardButton(text="🌙 Вечер", callback_data=EVENING_CALL),
+            InlineKeyboardButton(text="🌆 Вечер", callback_data=EVENING_CALL),
             InlineKeyboardButton(text="🌃 Ночь", callback_data=NIGHT_CALL),
         ]
     ]

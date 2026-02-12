@@ -1,9 +1,16 @@
 # bot/ai/client.py
-from openai import AsyncOpenAI
+import httpx
 import os
 
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+AI_BASE_URL = os.getenv("AI_BASE_URL")
 
-openrouter_client = AsyncOpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OPENROUTER_API_KEY")
+http_client = httpx.AsyncClient(
+    base_url=AI_BASE_URL,
+    headers={
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "HTTP-Referer": "http://localhost:8000",  # обязательно для OpenRouter
+        "X-Title": "Anti-Loneliness AI",
+    },
+    timeout=30.0
 )

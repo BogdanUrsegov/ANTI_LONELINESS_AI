@@ -11,9 +11,9 @@ router = Router()
 async def is_adult_handler(callback: CallbackQuery):
     await callback.message.edit_reply_markup()
     await callback.message.answer(
-        "<b>Этот бот предназначен только для взрослых</b>\n\n"
-
-        "<i>Тебе есть 18 лет?</i>",
+        "<b>Маленький, но важный момент.</b>\n\n"
+        "Этот чат предназначен <i>только для взрослых</i>.\n"
+        "Тебе уже есть 18 лет? 🌱",
         reply_markup=is_adult_menu
     )
     await callback.answer()

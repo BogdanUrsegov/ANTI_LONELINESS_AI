@@ -1,36 +1,35 @@
+# bot/modules/ai_chat/handlers/message.py
 from aiogram import Router, F
 from aiogram.types import Message
-from aiogram.fsm.context import FSMContext
-from bot.ai.utils.chat import get_ai_response
-from bot.database.utils.ai.context_manager import load_context, save_message
+import logging
 from sqlalchemy.ext.asyncio import AsyncSession
+from bot.database.utils.ai.context_builder import fetch_user_context
+from bot.ai.utils.chat import generate_personalized_ai_response
+from bot.database.utils.ai.context_manager import save_message
 
+
+logging.getLogger(__name__)
 
 router = Router()
 
 @router.message(F.text)
-async def handle_ai_query(message: Message, state: FSMContext, session: AsyncSession):
-    user_id = message.from_user.id
+async def handle_ai_query(message: Message, session: AsyncSession):
+    telegram_id = message.from_user.id
     user_text = message.text
 
-    # 1. Загружаем контекст
-    context = await load_context(user_id, session)
+    # 1. Собираем контекст из БД
+    context = await fetch_user_context(telegram_id, session)
 
-    # 2. Добавляем новое сообщение от пользователя
-    full_context = context + [{"role": "user", "content": user_text}]
+    # 2. Генерируем ответ от ИИ
+    try:
+        ai_response = await generate_personalized_ai_response(context, user_text)
 
-    # 3. Отправляем в ИИ
-    response = await get_ai_response("Привет")
+        # 3. Сохраняем сообщения
+        await save_message(telegram_id, "user", user_text, None, session)
+        await save_message(telegram_id, "assistant", ai_response, None, session)
 
-    # 4. Сохраняем оба сообщения
-    await save_message(user_id, "user", user_text, None, session)
-    await save_message(
-        user_id,
-        "assistant",
-        response.content,
-        getattr(response, "reasoning_details", None),
-        session,
-    )
-
-    # 5. Отправляем ответ пользователю
-    await message.answer(response.content)
+        # 4. Отправляем пользователю
+        await message.answer(ai_response)
+    except Exception as e:
+        logging.error(f"Ошибка при отправке ответа для {telegram_id} от ии: {e}")
+        await message.answer("<i>Мой дорогой друг, при создании ответа для тебя произошла ошибка. Я попробую ответить как можно скорее!</i>")

@@ -4,6 +4,7 @@ from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.database.utils.ai.context_manager import save_message
 from bot.scheduled_messages import RedisMessageScheduler
 from bot.modules.main_menu import goto_main_menu_kb
 from ..states.states import NotificationSettings
@@ -211,9 +212,15 @@ async def _finish_setup(callback: CallbackQuery, state: FSMContext, session: Asy
     )
 
     user_id = callback.from_user.id
+    text_for_scheduler = (
+        f"Я просто хотел сказать, что не надо быть сильным всё время.\n\n"
+
+        "Как ты сейчас?"
+    )
+    await save_message(user_id, "assistant", text_for_scheduler, None, session)
     await scheduler.schedule_message(
         chat_id=user_id,
-        text="Это запланированное сообщение через 2 минуты",
-        delay_seconds=2*60,
+        text=text_for_scheduler,
+        delay_seconds=30,
         user_id=user_id
     )

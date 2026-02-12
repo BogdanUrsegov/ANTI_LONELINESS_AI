@@ -22,7 +22,7 @@ adult_kb = InlineKeyboardMarkup(
 
 not_adult_kb = InlineKeyboardMarkup(
     inline_keyboard=[
-        [InlineKeyboardButton(text="❌ Нет", callback_data=NOT_ADULT_CALL)]
+        [InlineKeyboardButton(text="❌ Нет - Понимаю", callback_data=NOT_ADULT_CALL)]
     ]
 )
 

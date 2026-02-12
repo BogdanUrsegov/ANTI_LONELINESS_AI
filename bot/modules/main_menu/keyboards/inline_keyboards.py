@@ -19,7 +19,7 @@ goto_main_menu_kb = (InlineKeyboardBuilder()
 main_menu_builder = InlineKeyboardBuilder()
     
 buttons = [
-    ("💬 Мой формат общения", COMMUNICATION_FORMAT_CALL),
+    ("🎭 Мой формат общения", COMMUNICATION_FORMAT_CALL),
     ("⏰ Частота сообщений", MESSAGE_FREQUENCY_CALL),
     ("⏸ Пауза", PAUSE_CALL),
     ("🧹 Очистить память", CLEAR_MEMORY_CALL),

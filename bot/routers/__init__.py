@@ -12,11 +12,11 @@ from bot.modules.ai_chat import router as ai_chat_router
 
 router = Router()
 router.include_routers(start_router, 
+                       main_menu_router,
                        age_gate_router, 
                        archetype_router, 
                        mini_form_router, 
                        settings_time_router, 
-                       main_menu_router, 
                        ai_chat_router)
 
 

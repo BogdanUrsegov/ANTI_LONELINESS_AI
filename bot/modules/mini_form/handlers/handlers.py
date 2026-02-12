@@ -28,8 +28,8 @@ async def process_name(message: Message, state: FSMContext):
 
     await state.update_data(name=name)
     await message.answer(
-        "🌤️ <b>В какое время суток тебе обычно сложнее всего?</b>\n\n"
-        "Выбери наиболее подходящий вариант:",
+        "<b>В какое время тебе обычно сложнее всего?</b>\n\n"
+        "<i>Я буду особенно внимателен в эти моменты. 🌙</i>",
         reply_markup=hard_time_keyboard
     )
     await state.set_state(WorryState.choosing_worry)
@@ -48,9 +48,9 @@ async def process_hard_time(callback: CallbackQuery, state: FSMContext):
 
     opt = {
         MORNING_CALL: "🌅 Утро",
-        DAY_CALL: "🌞 День",
+        DAY_CALL: "☀️ День",
         EVENING_CALL: "🌆 Вечер",
-        NIGHT_CALL: "🌙 Ночь"
+        NIGHT_CALL: "🌃 Ночь"
     }.get(callback.data) or ""
     await callback.message.edit_text(
         f"{callback.message.html_text}\n\n"
@@ -102,19 +102,18 @@ async def _completion_onboarding(message: Message, state: FSMContext, telegram_i
             "Ты можешь писать мне в любой момент.\n"
             "А я буду иногда писать тебе сам."
         )
-    response_content = ""
+    response = ""
     try:
         response = await get_ai_response(
             f"Сгенерируй персональное сообщение от Telegram-бота эмоционального сопровождения для {name} с переживаниями {worry}, например:"
 
             f"{text_pattern}")
-        response_content = response.content
     except Exception as e:
         print(f"Error getting AI response: {e}")
-        response_content = text_pattern
+        response = text_pattern
 
-    if response_content:
-        await temp_mess.edit_text(response_content, reply_markup=set_settings_keyboard)
+    if response:
+        await temp_mess.edit_text(response, reply_markup=set_settings_keyboard)
     else:
         await temp_mess.edit_text(text_pattern, reply_markup=set_settings_keyboard)
         
