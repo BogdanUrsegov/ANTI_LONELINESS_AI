@@ -6,6 +6,7 @@ from bot.modules.mini_form import UserNameState
 from bot.modules.age_gate import ADULT_CALL
 from bot.modules.main_menu import COMMUNICATION_FORMAT_CALL
 from sqlalchemy.ext.asyncio import AsyncSession
+from aiogram.exceptions import TelegramBadRequest
 from bot.database.utils.update_user_field import update_user_fields
 from bot.database.utils.get_user_field import get_user_field
 from ..keyboards.inline_keyboards import WARM_SUPPORTIVE_CALL, CALM_MENTOR_CALL, FRIENDLY_LIGHT_CALL, SETTING_WARM_SUPPORTIVE_CALL, SETTING_CALM_MENTOR_CALL, SETTING_FRIENDLY_LIGHT_CALL
@@ -43,10 +44,13 @@ async def process_change_archetype(callback: CallbackQuery, state: FSMContext, s
         telegram_id=telegram_id,
         archetype=field_value
     )
-    await callback.message.delete()
-    await callback.message.answer(f"<b>Выбрано:</b> <i>{field_value}</i>\n\n"
-                                  "<b>Выбери мой архетип при общении</b>", 
-                                  reply_markup=setting_archetype_kb)
+    try:
+        await callback.message.edit_text(f"<b>Выбрано:</b> <i>{field_value}</i>\n\n"
+                                    "<b>Выбери мой архетип при общении</b>", 
+                                    reply_markup=setting_archetype_kb)
+    except TelegramBadRequest as e:
+        if "message is not modified" not in e.message:
+            raise  # пропускаем только эту конкретную ошибку
 
 
 @router.callback_query(F.data == ADULT_CALL)
@@ -66,7 +70,6 @@ async def adult_handler(callback: CallbackQuery):
     )
     await callback.answer()
 
-
 @router.callback_query(F.data.in_([WARM_SUPPORTIVE_CALL, CALM_MENTOR_CALL, FRIENDLY_LIGHT_CALL]))
 async def archetype_handler(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
     await callback.message.edit_reply_markup()
@@ -75,6 +78,7 @@ async def archetype_handler(callback: CallbackQuery, state: FSMContext, session:
         CALM_MENTOR_CALL: "Спокойный наставник",
         FRIENDLY_LIGHT_CALL: "Дружелюбный и лёгкий"
         }[callback.data]
+        
     await callback.message.edit_text(
         f"{callback.message.html_text}\n\n"
 

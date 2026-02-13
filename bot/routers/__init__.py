@@ -6,6 +6,8 @@ from bot.modules.mini_form import router as mini_form_router
 from bot.modules.settings_time import router as settings_time_router
 from bot.modules.main_menu import router as main_menu_router
 from bot.modules.ai_chat import router as ai_chat_router
+from bot.modules.frequency_messages import router as frequency_messages_router
+from bot.modules.about_product import router as about_product_router
 
 
 
@@ -17,7 +19,9 @@ router.include_routers(start_router,
                        archetype_router, 
                        mini_form_router, 
                        settings_time_router, 
-                       ai_chat_router)
+                       ai_chat_router,
+                       frequency_messages_router,
+                       about_product_router)
 
 
 __all__ = ["router"]

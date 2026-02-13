@@ -4,7 +4,6 @@ import os
 from openai import AsyncOpenAI
 
 
-OPENROUTER_API_KEY = "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"
 client = AsyncOpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=os.getenv("OPENROUTER_API_KEY"),
