@@ -8,7 +8,9 @@ from bot.database.session import AsyncSessionLocal, init_db
 from aiogram.fsm.storage.redis import RedisStorage
 from bot.middlewares.db import DbSessionMiddleware
 from bot.middlewares.scheduler import SchedulerMiddleware
+from bot.middlewares.registration import RegistrationMiddleware
 from bot.scheduled_messages import RedisMessageScheduler
+
 
 
 from .create_bot import bot, ADMIN_ID
@@ -59,6 +61,7 @@ def main() -> None:
     dp["session_maker"] = AsyncSessionLocal
 
     dp.update.middleware(DbSessionMiddleware(AsyncSessionLocal))
+    dp.update.middleware(RegistrationMiddleware())
     dp.update.middleware(SchedulerMiddleware(scheduler))
     #dp.update.middleware(ChannelLoggerMiddleware(channel_id=LOG_CHANNEL_ID))
 

@@ -15,7 +15,7 @@ from ..keyboards.inline_keyboards import (
 )
 
 
-logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 router = Router()
 
 # --- Шаг 1: Имя ---
@@ -105,7 +105,7 @@ async def _completion_onboarding(message: Message, state: FSMContext, telegram_i
     response = ""
     try:
         response = await get_ai_response(
-            f"Сгенерируй персональное сообщение от Telegram-бота эмоционального сопровождения для {name} с переживаниями {worry}, например:"
+            f"Сгенерируй персональное сообщение от Telegram-бота эмоционального сопровождения для {name} с переживаниями {worry}, сложное время суток: {hard_time}, например:"
 
             f"{text_pattern}")
     except Exception as e:
@@ -113,9 +113,9 @@ async def _completion_onboarding(message: Message, state: FSMContext, telegram_i
         response = text_pattern
 
     if response:
-        await temp_mess.edit_text(response, reply_markup=set_settings_keyboard)
+        await message.answer(response, reply_markup=set_settings_keyboard)
     else:
-        await temp_mess.edit_text(text_pattern, reply_markup=set_settings_keyboard)
+        await message.answer(text_pattern, reply_markup=set_settings_keyboard)
         
     await state.clear()
 

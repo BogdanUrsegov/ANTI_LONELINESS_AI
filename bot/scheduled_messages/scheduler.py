@@ -1,20 +1,21 @@
 import asyncio
-import os
 import aioredis
 import time
-from typing import Optional, List
-from .models import ScheduledMessage
+import json
+from datetime import datetime
+from typing import Optional, List, Callable, Dict, Any, Union
+from .models import ScheduledTask
+from dataclasses import dataclass
 
 
 class RedisMessageScheduler:
-    # Ключи Redis
-    ZSET_SCHEDULED = "scheduled_messages:queue"
-    HASH_USER_INDEX = "scheduled_messages:user:{user_id}"
+    ZSET_SCHEDULED = "scheduled_tasks:queue"
+    HASH_USER_INDEX = "scheduled_tasks:user:{user_id}"
 
     def __init__(
         self,
         redis_url: str,
-        check_interval: float = 1.0  # секунды между проверками (1 = оптимально)
+        check_interval: float = 1.0
     ):
         self.redis_url = redis_url
         self.check_interval = check_interval
@@ -22,8 +23,14 @@ class RedisMessageScheduler:
         self._worker_task: Optional[asyncio.Task] = None
         self._running = False
 
+        # Реестры обработчиков
+        self._function_registry: Dict[str, Callable] = {}
+        self._task_handlers: Dict[str, Callable] = {
+            "message": self._handle_send_message,
+            "function": self._handle_function_task,
+        }
+
     async def initialize(self):
-        """Инициализация Redis-соединения"""
         if not self._redis:
             self._redis = aioredis.from_url(
                 self.redis_url,
@@ -32,13 +39,24 @@ class RedisMessageScheduler:
             )
 
     async def close(self):
-        """Корректное завершение"""
         self.stop_worker()
         if self._redis:
             await self._redis.close()
             self._redis = None
 
-    # ─── API ДЛЯ РАБОТЫ С ЗАДАЧАМИ ──────────────────────────────────────────────
+    # ─── РЕГИСТРАЦИЯ ────────────────────────────────────────────────────────
+
+    def register_function(self, name: str, func: Callable) -> None:
+        """Регистрация кастомной асинхронной функции по имени."""
+        if not asyncio.iscoroutinefunction(func):
+            raise ValueError(f"Function '{name}' must be async (defined with 'async def').")
+        self._function_registry[name] = func
+
+    def register_task_handler(self, task_type: str, handler: Callable) -> None:
+        """Регистрация обработчика для нового типа задач."""
+        self._task_handlers[task_type] = handler
+
+    # ─── ПЛАНИРОВАНИЕ ЗАДАЧ ─────────────────────────────────────────────────
 
     async def schedule_message(
         self,
@@ -47,169 +65,166 @@ class RedisMessageScheduler:
         delay_seconds: int,
         user_id: int
     ) -> str:
-        """
-        Запланировать отложенное сообщение.
-        Возвращает уникальный message_key.
-        """
+        """Совместимость со старым интерфейсом."""
+        return await self.schedule_task(
+            task_type="message",
+            payload={"chat_id": chat_id, "text": text},
+            delay_seconds=delay_seconds,
+            user_id=user_id
+        )
+
+    async def schedule_function(
+        self,
+        function_name: str,
+        delay_seconds: int,
+        user_id: int,
+        **kwargs
+    ) -> str:
+        """Планирование кастомной функции."""
+        if function_name not in self._function_registry:
+            raise ValueError(f"Function '{function_name}' not registered. Use register_function() first.")
+        return await self.schedule_task(
+            task_type="function",
+            payload={"function_name": function_name, "kwargs": kwargs},
+            delay_seconds=delay_seconds,
+            user_id=user_id
+        )
+
+    async def schedule_task(
+        self,
+        task_type: str,
+        payload: Dict[str, Any],
+        delay_seconds: int,
+        user_id: int
+    ) -> str:
+        """Универсальный метод планирования задачи."""
         await self.initialize()
-        
         now = time.time()
         scheduled_at = now + delay_seconds
-        message_key = f"msg_{user_id}_{int(now * 1000)}"
-        
-        msg = ScheduledMessage(
-            message_key=message_key,
-            chat_id=chat_id,
-            text=text,
+        task_key = f"task_{user_id}_{int(now * 1000)}"
+        task = ScheduledTask(
+            task_key=task_key,
+            task_type=task_type,
+            payload=payload,
             scheduled_at=scheduled_at,
             created_at=now,
             user_id=user_id
         )
-        
-        # Атомарная запись через пайплайн
         pipe = self._redis.pipeline()
-        pipe.zadd(self.ZSET_SCHEDULED, {msg.to_redis(): scheduled_at})
-        pipe.hset(self.HASH_USER_INDEX.format(user_id=user_id), message_key, msg.to_redis())
+        pipe.zadd(self.ZSET_SCHEDULED, {task.to_redis(): scheduled_at})
+        pipe.hset(self.HASH_USER_INDEX.format(user_id=user_id), task_key, task.to_redis())
         await pipe.execute()
-        
-        return message_key
+        return task_key
 
-    async def cancel_message(self, message_key: str, user_id: int) -> bool:
-        """
-        Отменить запланированное сообщение.
-        Возвращает True, если сообщение найдено и удалено.
-        """
-        await self.initialize()
-        
-        # Получаем данные из индекса пользователя
-        msg_json = await self._redis.hget(
+    # ─── УПРАВЛЕНИЕ ЗАДАЧАМИ ───────────────────────────────────────────────
+
+    async def cancel_task(self, task_key: str, user_id: int) -> bool:
+        task_json = await self._redis.hget(
             self.HASH_USER_INDEX.format(user_id=user_id),
-            message_key
+            task_key
         )
-        
-        if not msg_json:
+        if not task_json:
             return False
-        
-        msg = ScheduledMessage.from_redis(msg_json)
-        
-        # Удаляем из обоих структур атомарно
         pipe = self._redis.pipeline()
-        pipe.zrem(self.ZSET_SCHEDULED, msg_json)
-        pipe.hdel(self.HASH_USER_INDEX.format(user_id=user_id), message_key)
+        pipe.zrem(self.ZSET_SCHEDULED, task_json)
+        pipe.hdel(self.HASH_USER_INDEX.format(user_id=user_id), task_key)
         results = await pipe.execute()
-        
-        return results[0] > 0  # zrem вернул 1 = успешно удалено
+        return results[0] > 0
 
-    async def get_user_scheduled(self, user_id: int) -> List[ScheduledMessage]:
-        """
-        Получить список активных задач пользователя (для интерфейса удаления).
-        """
-        await self.initialize()
-        
+    async def get_user_scheduled(self, user_id: int) -> List[ScheduledTask]:
         msgs_json = await self._redis.hvals(
             self.HASH_USER_INDEX.format(user_id=user_id)
         )
-        return [ScheduledMessage.from_redis(m) for m in msgs_json] if msgs_json else []
+        return [ScheduledTask.from_redis(m) for m in msgs_json] if msgs_json else []
 
-    async def cancel_all_user_messages(self, user_id: int) -> int:
-        """
-        Отменить все запланированные сообщения пользователя.
-        Возвращает количество удалённых задач.
-        """
-        await self.initialize()
-        
+    async def cancel_all_user_tasks(self, user_id: int) -> int:
         msgs_json = await self._redis.hvals(
             self.HASH_USER_INDEX.format(user_id=user_id)
         )
-        
         if not msgs_json:
             return 0
-        
-        # Удаляем из Sorted Set
         pipe = self._redis.pipeline()
         for msg_json in msgs_json:
             pipe.zrem(self.ZSET_SCHEDULED, msg_json)
         await pipe.execute()
-        
-        # Очищаем индекс пользователя
         deleted = await self._redis.delete(
             self.HASH_USER_INDEX.format(user_id=user_id)
         )
-        
         return len(msgs_json)
 
-    # ─── ФОНОВЫЙ ВОРКЕР ──────────────────────────────────────────────────────────
+    # ─── ВСТРОЕННЫЕ ОБРАБОТЧИКИ ─────────────────────────────────────────────
+
+    async def _handle_send_message(self, payload: Dict[str, Any], bot) -> None:
+        await bot.send_message(
+            chat_id=payload["chat_id"],
+            text=payload["text"]
+        )
+
+    async def _handle_function_task(self, payload: Dict[str, Any], bot) -> None:
+        func_name = payload["function_name"]
+        kwargs = payload.get("kwargs", {})
+        func = self._function_registry.get(func_name)
+        if not func:
+            raise RuntimeError(f"Function '{func_name}' missing in registry at execution time")
+        # Автоматически передаём bot, если функция его ожидает
+        if "bot" in func.__code__.co_varnames[:func.__code__.co_argcount]:
+            kwargs["bot"] = bot
+        await func(**kwargs)
+
+    # ─── ФОНОВЫЙ ВОРКЕР ─────────────────────────────────────────────────────
 
     async def _worker_loop(self, bot):
-        """Основной цикл воркера. Потребляет <0.3% CPU при sleep(1)."""
         while self._running:
             try:
                 now = time.time()
-                
-                # Получаем все "созревшие" сообщения (до текущего момента)
-                ready_msgs = await self._redis.zrangebyscore(
+                ready_tasks = await self._redis.zrangebyscore(
                     self.ZSET_SCHEDULED,
                     0,
                     now,
                     withscores=False
                 )
-                
-                if ready_msgs:
+                if ready_tasks:
                     pipe = self._redis.pipeline()
-                    
-                    for msg_json in ready_msgs:
+                    for task_json in ready_tasks:
                         try:
-                            msg = ScheduledMessage.from_redis(msg_json)
-                            
-                            # Отправляем сообщение
-                            await bot.send_message(
-                                chat_id=msg.chat_id,
-                                text=msg.text
-                                # parse_mode берётся из глобального конфига бота
-                            )
-                            
-                            # Удаляем из индекса пользователя
-                            await self._redis.hdel(
-                                self.HASH_USER_INDEX.format(user_id=msg.user_id),
-                                msg.message_key
-                            )
-                            
+                            task = ScheduledTask.from_redis(task_json)
+                            handler = self._task_handlers.get(task.task_type)
+                            if not handler:
+                                print(f"⚠️ No handler for task type: {task.task_type}")
+                                pipe.zrem(self.ZSET_SCHEDULED, task_json)
+                                continue
+                            try:
+                                await asyncio.wait_for(handler(task.payload, bot), timeout=60.0)
+                            except asyncio.TimeoutError:
+                                print(f"⚠️ Task {task.task_key} timed out after 60s")
+                            except Exception as e:
+                                print(f"⚠️ Error in task {task.task_key}: {e}")
                         except Exception as e:
-                            print(f"⚠️ Ошибка отправки отложенного сообщения {msg_json}: {e}")
-                        
-                        # Удаляем из очереди (в любом случае — даже при ошибке отправки)
-                        pipe.zrem(self.ZSET_SCHEDULED, msg_json)
-                    
+                            print(f"⚠️ Deserialization error: {e}")
+                        pipe.zrem(self.ZSET_SCHEDULED, task_json)
                     await pipe.execute()
-                
-                # Ключевой момент: асинхронная пауза НЕ грузит CPU
                 await asyncio.sleep(self.check_interval)
-                
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"⚠️ Ошибка воркера отложенных сообщений: {e}")
-                await asyncio.sleep(self.check_interval * 2)  # экспоненциальная пауза
+                print(f"⚠️ Worker loop error: {e}")
+                await asyncio.sleep(self.check_interval * 2)
 
     def start_worker(self, bot) -> None:
-        """Запустить фоновый воркер (вызывать после инициализации бота)"""
         if self._running:
             return
-        
         self._running = True
         self._worker_task = asyncio.create_task(
             self._worker_loop(bot),
-            name="redis_message_worker"
+            name="redis_scheduler_worker"
         )
-        print("✅ Воркер отложенных сообщений запущен")
+        print("✅ Универсальный шедулер запущен")
 
     def stop_worker(self) -> None:
-        """Остановить воркер с graceful shutdown"""
         if not self._running:
             return
-        
         self._running = False
         if self._worker_task:
             self._worker_task.cancel()
             self._worker_task = None
-        print("⏹️ Воркер отложенных сообщений остановлен")
+        print("⏹️ Универсальный шедулер остановлен")
