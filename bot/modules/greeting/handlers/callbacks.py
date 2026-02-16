@@ -10,8 +10,7 @@ router = Router()
 
 @router.callback_query(F.data == WHAT_CAN_CALL)
 async def what_call_handler(callback: CallbackQuery, scheduler: RedisMessageScheduler):
-    await callback.message.edit_reply_markup()
-    await callback.message.answer(
+    await callback.message.edit_text(
         "<b>Здесь всё довольно просто.</b>\n\n"
         "Этот чат — для <i>обычных дней</i> и <i>непростых моментов</i>,\n"
         "когда не хочется оставаться наедине с мыслями.\n\n"

@@ -1,4 +1,4 @@
-from aiogram import Router, F
+from aiogram import Bot, Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 import logging
@@ -20,18 +20,23 @@ router = Router()
 
 # --- Шаг 1: Имя ---
 @router.message(UserNameState.waiting_for_name)
-async def process_name(message: Message, state: FSMContext):
+async def process_name(message: Message, state: FSMContext, bot: Bot):
     name = message.text.strip()
     if not name:
         await message.answer("🫣 Пожалуйста, напиши, как тебя зовут.")
         return
-
     await state.update_data(name=name)
-    await message.answer(
-        "<b>В какое время тебе обычно сложнее всего?</b>\n\n"
-        "<i>Я буду особенно внимателен в эти моменты. 🌙</i>",
-        reply_markup=hard_time_keyboard
-    )
+    await message.delete()
+    data = await state.get_data()
+    message_id = data.get("message_id")
+    text = (
+            "<b>В какое время тебе обычно сложнее всего?</b>\n\n"
+            "<i>Я буду особенно внимателен в эти моменты. 🌙</i>"
+            )
+    try:
+        await bot.edit_message_text(text=text, chat_id=message.from_user.id, message_id=message_id, reply_markup=hard_time_keyboard)
+    except:
+        await bot.send_message(text=text, chat_id=message.from_user.id, message_id=message_id, reply_markup=hard_time_keyboard)
     await state.set_state(WorryState.choosing_worry)
 
 
@@ -52,23 +57,21 @@ async def process_hard_time(callback: CallbackQuery, state: FSMContext):
         EVENING_CALL: "🌆 Вечер",
         NIGHT_CALL: "🌃 Ночь"
     }.get(callback.data) or ""
+
     await callback.message.edit_text(
-        f"{callback.message.html_text}\n\n"
-
-        f"<b>{opt}</b>"
-        )
-
-    await callback.message.answer(
         "💭 <b>Что сейчас беспокоит тебя больше всего?</b>\n\n"
         "Можешь выбрать из списка или написать своё:",
         reply_markup=worry_keyboard
     )
+
+    await state.update_data(message_id=callback.message.message_id)
+
     await state.set_state(WorryState.choosing_worry)
-    await callback.answer()
+    await callback.answer(opt)
 
 # --- Шаг 3: Выбор беспокойства (готовые варианты) ---
 
-async def _completion_onboarding(message: Message, state: FSMContext, telegram_id: int, worry: str, session: AsyncSession):
+async def _completion_onboarding(bot: Bot, state: FSMContext, telegram_id: int, worry: str, session: AsyncSession):
     data = await state.get_data()
     name = data["name"]
     hard_time = {
@@ -88,11 +91,7 @@ async def _completion_onboarding(message: Message, state: FSMContext, telegram_i
         main_topic=worry
         )
     logging.debug(f"Результат записи данных из мини формы в бд: {res}")
-    temp_mess = await message.answer("⏳ Пожалуйста, дай мне время обдумать...")
-    await message.bot.send_chat_action(
-        chat_id=message.chat.id,
-        action=ChatAction.TYPING
-    )
+    temp_mess = await bot.send_message(telegram_id, "⏳ Пожалуйста, дай мне время обдумать...")
 
     text_pattern = (
             f"Спасибо, что рассказал(а) мне это, {name}.\n\n"
@@ -113,10 +112,11 @@ async def _completion_onboarding(message: Message, state: FSMContext, telegram_i
         response = text_pattern
 
     if response:
-        await message.answer(response, reply_markup=set_settings_keyboard)
+        await bot.send_message(telegram_id, response, reply_markup=set_settings_keyboard)
     else:
-        await message.answer(text_pattern, reply_markup=set_settings_keyboard)
+        await bot.send_message(telegram_id, text_pattern, reply_markup=set_settings_keyboard)
         
+    await bot.delete_message(chat_id=telegram_id, message_id=temp_mess.message_id)
     await state.clear()
 
 @router.callback_query(
@@ -126,9 +126,7 @@ async def _completion_onboarding(message: Message, state: FSMContext, telegram_i
         DISCIPLINE_CALL
     ])
 )
-async def process_worry_choice(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
-    await callback.message.edit_reply_markup()
-    await callback.answer()
+async def process_worry_choice(callback: CallbackQuery, state: FSMContext, session: AsyncSession, bot: Bot):
     telegram_id = callback.from_user.id
     worry_mapping = {
         LONELINESS_CALL: "Одиночество",
@@ -137,14 +135,12 @@ async def process_worry_choice(callback: CallbackQuery, state: FSMContext, sessi
         DISCIPLINE_CALL: "Дисциплина",
     }
     worry = worry_mapping[callback.data]
+    await callback.answer(worry)
 
-    await callback.message.edit_text(
-        f"{callback.message.html_text}\n\n"
 
-        f"🛟 <b>{worry}</b>"
-    )
+    await callback.message.delete()
 
-    await _completion_onboarding(message=callback.message, state=state, telegram_id=telegram_id, worry=worry, session=session)
+    await _completion_onboarding(bot=bot, state=state, telegram_id=telegram_id, worry=worry, session=session)
 
 
 # --- Шаг 3: "Другое" → ожидание текста ---
@@ -160,11 +156,15 @@ async def process_worry_other(callback: CallbackQuery, state: FSMContext):
 
 # --- Обработка кастомного текста ---
 @router.message(WorryState.entering_custom_worry)
-async def process_custom_worry(message: Message, state: FSMContext, session: AsyncSession):
+async def process_custom_worry(message: Message, state: FSMContext, session: AsyncSession, bot: Bot):
     telegram_id = message.from_user.id
     custom_worry = message.text.strip()
     if not custom_worry:
         await message.answer("🫤 Пожалуйста, напиши, что тебя тревожит.")
         return
 
-    await _completion_onboarding(message=message, state=state, telegram_id=telegram_id, worry=custom_worry, session=session)
+    data = await state.get_data()
+    message_id = data.get("message_id")
+    await bot.delete_messages(chat_id=telegram_id, message_ids=(message.message_id, message_id))
+
+    await _completion_onboarding(bot=bot, state=state, telegram_id=telegram_id, worry=custom_worry, session=session)

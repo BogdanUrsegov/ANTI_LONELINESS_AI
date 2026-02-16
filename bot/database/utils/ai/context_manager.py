@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.database.models import ChatMessage
 
 
-async def load_context(telegram_id: int, session: AsyncSession, limit: int = 10) -> List[Dict[str, Optional[dict]]]:
+async def load_context(telegram_id: int, session: AsyncSession, limit: int = 25) -> List[Dict[str, Optional[dict]]]:
     """Загружает последние N сообщений пользователя из БД (в хронологическом порядке)."""
     stmt = (
         select(ChatMessage)

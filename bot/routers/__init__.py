@@ -11,6 +11,7 @@ from bot.modules.about_product import router as about_product_router
 from bot.modules.delete_user import router as delete_user_router
 from bot.modules.clear_memory import router as clear_memory_router
 from bot.modules.pause import router as pause_router
+from bot.modules.subscription import router as subscription_router
 
 
 router = Router()
@@ -25,7 +26,8 @@ router.include_routers(start_router,
                        frequency_messages_router,
                        about_product_router,
                        clear_memory_router,
-                       pause_router
+                       pause_router,
+                        subscription_router
                        )
 
 

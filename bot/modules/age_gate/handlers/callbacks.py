@@ -9,8 +9,7 @@ router = Router()
 
 @router.callback_query(F.data == FURTHER_CALL)
 async def is_adult_handler(callback: CallbackQuery):
-    await callback.message.edit_reply_markup()
-    await callback.message.answer(
+    await callback.message.edit_text(
         "<b>Маленький, но важный момент.</b>\n\n"
         "Этот чат предназначен <i>только для взрослых</i>.\n"
         "Тебе уже есть 18 лет? 🌱",
@@ -20,8 +19,7 @@ async def is_adult_handler(callback: CallbackQuery):
 
 @router.callback_query(F.data == NOT_ADULT_CALL)
 async def not_adult_handler(callback: CallbackQuery):
-    await callback.message.edit_reply_markup()
-    await callback.message.answer(
+    await callback.message.edit_text(
         "<b>Извини, я не могу продолжить разговор</b>\n\n"
 
         "<i>Береги себя 🤍</i>"

@@ -23,7 +23,7 @@ buttons = [
     ("⏰ Частота сообщений", MESSAGE_FREQUENCY_CALL),
     ("⏸ Пауза", PAUSE_CALL),
     ("🧹 Очистить память", CLEAR_MEMORY_CALL),
-    ("💳 Подписка", SUBSCRIPTION_CALL),
+    ("💎 Подписка", SUBSCRIPTION_CALL),
     ("ℹ️ О продукте", ABOUT_PRODUCT_CALL)
 ]
     

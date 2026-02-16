@@ -54,46 +54,34 @@ async def process_change_archetype(callback: CallbackQuery, state: FSMContext, s
 
 
 @router.callback_query(F.data == ADULT_CALL)
-async def adult_handler(callback: CallbackQuery):
-    await callback.message.edit_reply_markup()
+async def adult_handler(callback: CallbackQuery):    
     await callback.message.edit_text(
-        f"{callback.message.html_text}\n\n"
-
-        "✅ <b>Есть 18 лет</b>"
-    ) 
-    
-    await callback.message.answer(
         "<b>Какой формат общения тебе сейчас ближе?</b>\n\n"
 
         "<i>Выбери того, с кем тебе будет комфортно. Ты сможешь сменить это позже</i>",
         reply_markup=archetype_kb
     )
-    await callback.answer()
+    await callback.answer("✅ Есть 18 лет")
 
 @router.callback_query(F.data.in_([WARM_SUPPORTIVE_CALL, CALM_MENTOR_CALL, FRIENDLY_LIGHT_CALL]))
 async def archetype_handler(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
-    await callback.message.edit_reply_markup()
     field_value = {
         WARM_SUPPORTIVE_CALL: "Тёплый и поддерживающий",
         CALM_MENTOR_CALL: "Спокойный наставник",
         FRIENDLY_LIGHT_CALL: "Дружелюбный и лёгкий"
         }[callback.data]
-        
-    await callback.message.edit_text(
-        f"{callback.message.html_text}\n\n"
-
-        f"🗣 <b>{field_value}</b>"
-    ) 
+    
     await update_user_fields(
         session=session,
         telegram_id=callback.from_user.id,
         archetype=field_value
     )
-    await callback.message.answer(
+    await callback.message.edit_text(
         "<b>Отлично! Давай начнем знакомство с тобой</b>\n\n"
 
         "<b>Как я могу к тебе обращаться?</b>\n\n"
         "<i>Или как тебе комфортно, чтобы я тебя называл? 💌</i>"
     )
     await state.set_state(UserNameState.waiting_for_name)
-    await callback.answer()
+    await state.update_data(message_id=callback.message.message_id)
+    await callback.answer(field_value)
