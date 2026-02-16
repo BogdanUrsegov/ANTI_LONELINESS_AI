@@ -35,7 +35,7 @@ async def start_notification_setup(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(
         "🌤️ <b>Давай настроим, когда мне лучше писать тебе.</b>\n\n"
         "Это важно, чтобы я не был навязчивым.\n\n"
-        "🔔 <b>Настройка 1 — утро</b>\n"
+        "🔔 <b>Утро</b>\n"
         "Хочешь, чтобы я писал тебе утром?",
         reply_markup=morning_setting_keyboard
     )
@@ -84,7 +84,7 @@ async def process_morning_time(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(NotificationSettings.morning_time_input, F.data == "back_to_morning_choice")
 async def back_to_morning_choice(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
-        "🔔 <b>Настройка 1 — утро</b>\n"
+        "🔔 <b>Утро</b>\n"
         "Хочешь, чтобы я писал тебе утром?"
     )
     await callback.message.edit_reply_markup(reply_markup=morning_setting_keyboard)
@@ -141,7 +141,7 @@ async def _ask_evening(callback: CallbackQuery, state: FSMContext):
         )
     
     await message.answer(
-        "🌙 <b>Настройка 2 — вечер</b>\n"
+        "🌙 <b>Вечер</b>\n\n"
         "А вечером?",
         reply_markup=evening_setting_keyboard
     )
@@ -163,7 +163,7 @@ async def _ask_day_touches(callback: CallbackQuery, state: FSMContext):
         )
     
     await message.answer(
-        "🕊️ <b>Настройка 3 — дневные касания</b>\n\n"
+        "🕊️ <b>Дневные касания</b>\n\n"
         "Иногда я могу писать тебе днём — коротко, без давления.\n"
         "Хочешь?",
         reply_markup=day_touches_keyboard
