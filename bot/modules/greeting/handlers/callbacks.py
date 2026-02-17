@@ -1,15 +1,14 @@
 from aiogram.types import CallbackQuery
 from aiogram import F, Router
 
-from bot.scheduled_messages import RedisMessageScheduler
-from ..keyboards.inline_keyboards import FURTHER_CALL, WHAT_CAN_CALL, continue_kb
+from ..keyboards.inline_keyboards import WHAT_CAN_CALL, continue_kb
 
 
 router = Router()
 
 
 @router.callback_query(F.data == WHAT_CAN_CALL)
-async def what_call_handler(callback: CallbackQuery, scheduler: RedisMessageScheduler):
+async def what_call_handler(callback: CallbackQuery):
     await callback.message.edit_text(
         "<b>Здесь всё довольно просто.</b>\n\n"
         "Этот чат — для <i>обычных дней</i> и <i>непростых моментов</i>,\n"

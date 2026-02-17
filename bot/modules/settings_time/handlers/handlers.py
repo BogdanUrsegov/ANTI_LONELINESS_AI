@@ -1,11 +1,11 @@
-import asyncio
+from datetime import datetime, timedelta
+import logging
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from bot.database.utils.ai.context_manager import save_message
-from bot.scheduled_messages import RedisMessageScheduler
+from bot.scheduler.tasks import first_generated_message
 from bot.modules.main_menu import goto_main_menu_kb
 from ..states.states import NotificationSettings
 
@@ -19,12 +19,14 @@ from ..keyboards.inline_keyboards import (
 from ..keyboards.inline_keyboards import (
     MORNING_ENABLED_CALL, MORNING_DISABLED_CALL,
     EVENING_ENABLED_CALL, EVENING_DISABLED_CALL,
-    DAY_TOUCHES_ENABLED_CALL, DAY_TOUCHES_DISABLED_CALL,
-    MORNING_TIME_7_CALL, MORNING_TIME_8_CALL, MORNING_TIME_10_CALL
+    DAY_TOUCHES_ENABLED_CALL, DAY_TOUCHES_DISABLED_CALL
 )
 
 from bot.database.utils.update_user_field import update_user_fields
 from bot.modules.mini_form import SET_SETTINGS_CALL
+
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -127,26 +129,26 @@ async def evening_disabled(callback: CallbackQuery, state: FSMContext):
 
 # --- Дневные касания: Да / Нет → финал ---
 @router.callback_query(NotificationSettings.day_touches_choice, F.data == DAY_TOUCHES_ENABLED_CALL)
-async def day_touches_enabled(callback: CallbackQuery, state: FSMContext, session: AsyncSession, scheduler: RedisMessageScheduler):
+async def day_touches_enabled(callback: CallbackQuery, state: FSMContext, scheduler: AsyncIOScheduler):
     await state.update_data(day_touches=True)
-    await _finish_setup(callback, state, session, scheduler)
+    await _finish_setup(callback, state, scheduler)
     await callback.answer("✅ Дневные касания: включены")
 
 
 @router.callback_query(NotificationSettings.day_touches_choice, F.data == DAY_TOUCHES_DISABLED_CALL)
-async def day_touches_disabled(callback: CallbackQuery, state: FSMContext, session: AsyncSession, scheduler: RedisMessageScheduler):
+async def day_touches_disabled(callback: CallbackQuery, state: FSMContext, scheduler: AsyncIOScheduler):
     await state.update_data(day_touches=False)
-    await _finish_setup(callback, state, session, scheduler)
+    await _finish_setup(callback, state, scheduler)
     await callback.answer("❌ Дневные касания: отключены")
 
 
 # --- Финальное сохранение (редактируем исходное сообщение) ---
-async def _finish_setup(callback: CallbackQuery, state: FSMContext, session: AsyncSession, scheduler: RedisMessageScheduler):
+async def _finish_setup(callback: CallbackQuery, state: FSMContext, scheduler: AsyncIOScheduler):
     data = await state.get_data()
     
     # Сохранение в БД
     await update_user_fields(
-        session=session,
+        
         telegram_id=callback.from_user.id,
         notify_morning=data.get("morning_enabled"),
         notify_morning_time=data.get("morning_time"),
@@ -172,10 +174,17 @@ async def _finish_setup(callback: CallbackQuery, state: FSMContext, session: Asy
         "Я просто хотел сказать, что не надо быть сильным всё время.\n\n"
         "Как ты сейчас?"
     )
-    await save_message(user_id, "assistant", text_for_scheduler, None, session)
-    await scheduler.schedule_message(
-        chat_id=user_id,
-        text=text_for_scheduler,
-        delay_seconds=30,
-        user_id=user_id
+    await save_message(user_id, "assistant", text_for_scheduler, None)
+
+    job_id = f"first_generated_message_{user_id}"
+    run_time = datetime.now() + timedelta(seconds=15)
+    scheduler.add_job(
+        func=first_generated_message,       # Функция, которую вызовем
+        trigger='date',                # Тип: однократный запуск в дату
+        run_date=run_time,             # Конкретное время запуска
+        id=job_id,                     # ID для управления
+        kwargs={'bot': callback.bot, 'user_id': user_id},
+        replace_existing=True
     )
+
+    logger.info(f"Создана задача для планировщика: {job_id}")

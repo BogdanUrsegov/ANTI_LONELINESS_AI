@@ -1,15 +1,14 @@
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import NoResultFound
 import logging
 
 from bot.database.models import User
+from bot.database.session import AsyncSessionLocal
 
 
-logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 async def update_user_fields(
-    session: AsyncSession,
     telegram_id: int,
     **fields
 ) -> bool:
@@ -26,24 +25,26 @@ async def update_user_fields(
     if not fields:
         return True  # ничего не обновлять — считаем успешным
 
-    try:
-        result = await session.execute(
-            select(User).where(User.telegram_id == telegram_id)
-        )
-        user = result.scalar_one()
+    async with AsyncSessionLocal() as session:
+        try:
+            result = await session.execute(
+                select(User).where(User.telegram_id == telegram_id)
+            )
+            user = result.scalar_one()
 
-        # Проверяем существование всех полей в модели
-        for field_name in fields:
-            if not hasattr(user, field_name):
-                raise AttributeError(f"Модель User не содержит поля '{field_name}'")
+            # Проверяем существование всех полей в модели
+            for field_name in fields:
+                if not hasattr(user, field_name):
+                    raise AttributeError(f"Модель User не содержит поля '{field_name}'")
 
-        # Обновляем поля
-        for field_name, value in fields.items():
-            setattr(user, field_name, value)
+            # Обновляем поля
+            for field_name, value in fields.items():
+                setattr(user, field_name, value)
 
-        await session.commit()
-        return True
+            await session.commit()
+            return True
 
-    except NoResultFound as e:
-        logging.debug(e)
-        return False
+        except Exception as e:
+            logger.error(f"Ошибка update_user_fields: {e}")
+            await session.rollback()
+            raise

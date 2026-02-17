@@ -1,5 +1,4 @@
 from aiogram import F, Router, types
-from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram.fsm.context import FSMContext
 from ..keyboards.inline_keyboards import goto_main_menu_kb
 from bot.modules.main_menu import ABOUT_PRODUCT_CALL
@@ -9,7 +8,7 @@ router = Router()
 
 
 @router.callback_query(F.data == ABOUT_PRODUCT_CALL)
-async def callback_menu(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession):
+async def callback_menu(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
     text = (
         "<b>Здесь всё довольно просто.</b>\n\n"

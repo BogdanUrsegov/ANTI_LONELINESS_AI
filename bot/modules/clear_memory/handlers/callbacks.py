@@ -1,7 +1,6 @@
 from aiogram.types import CallbackQuery
 from aiogram import F, Router
 from bot.modules.main_menu import CLEAR_MEMORY_CALL
-from sqlalchemy.ext.asyncio import AsyncSession
 from ..keyboards.inline_keyboards import DELETE_HISTORY_CALL, delete_history_kb
 from bot.modules.main_menu.keyboards import goto_main_menu_kb
 from bot.database.utils import delete_user_messages
@@ -21,10 +20,10 @@ async def is_clear_memory_handler(callback: CallbackQuery):
     await callback.answer()
 
 @router.callback_query(F.data == DELETE_HISTORY_CALL)
-async def clear_memory_handler(callback: CallbackQuery, session: AsyncSession):
+async def clear_memory_handler(callback: CallbackQuery):
     telegram_id = callback.from_user.id
     try:
-        await delete_user_messages(session, telegram_id)
+        await delete_user_messages(telegram_id)
         await callback.message.edit_text(
             "<b>Я больше не помню личные детали, но по-прежнему рядом и на связи.</b>",
             reply_markup=goto_main_menu_kb

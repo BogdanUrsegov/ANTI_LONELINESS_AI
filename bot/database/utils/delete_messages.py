@@ -1,11 +1,15 @@
+import logging
 from sqlalchemy import delete
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
+
+from bot.database.session import AsyncSessionLocal
 from ..models import ChatMessage  # импорт модели из вашего модуля
 
 
+logger = logging.getLogger(__name__)
+
+
 async def delete_user_messages(
-    session: AsyncSession,
     telegram_id: int
 ) -> bool:
     """
@@ -18,11 +22,13 @@ async def delete_user_messages(
     Returns:
         True если удаление выполнено успешно, иначе False
     """
-    try:
-        stmt = delete(ChatMessage).where(ChatMessage.telegram_id == telegram_id)
-        result = await session.execute(stmt)
-        await session.commit()
-        return result.rowcount > 0
-    except Exception:
-        await session.rollback()
-        return False
+    async with AsyncSessionLocal() as session:
+        try:
+            stmt = delete(ChatMessage).where(ChatMessage.telegram_id == telegram_id)
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.rowcount > 0
+        except Exception as e:
+            logger.error(f"Ошибка delete_user_messages: {e}")
+            await session.rollback()
+            raise

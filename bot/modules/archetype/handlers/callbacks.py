@@ -5,7 +5,6 @@ from aiogram.fsm.context import FSMContext
 from bot.modules.mini_form import UserNameState
 from bot.modules.age_gate import ADULT_CALL
 from bot.modules.main_menu import COMMUNICATION_FORMAT_CALL
-from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram.exceptions import TelegramBadRequest
 from bot.database.utils.update_user_field import update_user_fields
 from bot.database.utils.get_user_field import get_user_field
@@ -16,10 +15,9 @@ router = Router()
 
 
 @router.callback_query(F.data == COMMUNICATION_FORMAT_CALL)
-async def communication_format_handler(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+async def communication_format_handler(callback: CallbackQuery, state: FSMContext):
     telegram_id = callback.from_user.id
-    archetype = await get_user_field(session=session, 
-                                     telegram_id=telegram_id,
+    archetype = await get_user_field(telegram_id=telegram_id,
                                      field_name="archetype")
     await callback.message.edit_text(f"<b>Выбрано:</b> <i>{archetype}</i>\n\n"
                                   "<b>Выбери мой архетип при общении</b>", 
@@ -29,7 +27,7 @@ async def communication_format_handler(callback: CallbackQuery, state: FSMContex
 @router.callback_query(F.data.in_([
         SETTING_WARM_SUPPORTIVE_CALL, SETTING_CALM_MENTOR_CALL, SETTING_FRIENDLY_LIGHT_CALL
     ]))
-async def process_change_archetype(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+async def process_change_archetype(callback: CallbackQuery, state: FSMContext):
     telegram_id = callback.from_user.id
     field_value = {
         SETTING_WARM_SUPPORTIVE_CALL: "Тёплый и поддерживающий",
@@ -40,7 +38,6 @@ async def process_change_archetype(callback: CallbackQuery, state: FSMContext, s
     await callback.answer(field_value)
 
     await update_user_fields(
-        session=session, 
         telegram_id=telegram_id,
         archetype=field_value
     )
@@ -64,7 +61,7 @@ async def adult_handler(callback: CallbackQuery):
     await callback.answer("✅ Есть 18 лет")
 
 @router.callback_query(F.data.in_([WARM_SUPPORTIVE_CALL, CALM_MENTOR_CALL, FRIENDLY_LIGHT_CALL]))
-async def archetype_handler(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+async def archetype_handler(callback: CallbackQuery, state: FSMContext):
     field_value = {
         WARM_SUPPORTIVE_CALL: "Тёплый и поддерживающий",
         CALM_MENTOR_CALL: "Спокойный наставник",
@@ -72,7 +69,7 @@ async def archetype_handler(callback: CallbackQuery, state: FSMContext, session:
         }[callback.data]
     
     await update_user_fields(
-        session=session,
+        
         telegram_id=callback.from_user.id,
         archetype=field_value
     )

@@ -3,6 +3,7 @@ import logging
 import os
 from aiohttp import web
 from redis.asyncio import Redis
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.redis import RedisStorage
@@ -10,115 +11,138 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 
 # Локальные импорты
 from bot.database.session import AsyncSessionLocal, init_db
-from bot.middlewares.db import DbSessionMiddleware
 from bot.middlewares.scheduler import SchedulerMiddleware
+from bot.middlewares.db import DbSessionMiddleware
 from bot.middlewares.registration import RegistrationMiddleware
-from bot.scheduled_messages import RedisMessageScheduler
+from bot.scheduler.tasks import daily_evening_message, run_daily_aggregation
 from .create_bot import bot, ADMIN_ID
 from .routers import router
 
-# === Настройки из окружения ===
+# === Настройки ===
 REDIS_URL = os.getenv("REDIS_URL")
 WEBHOOK_PATH = os.getenv("WEBHOOK_PATH", "/webhook")
 BASE_URL = os.getenv("WEBHOOK_BASE_URL", "")
 HOST = os.getenv("WEBHOOK_HOST", "0.0.0.0")
 PORT = int(os.getenv("WEBHOOK_PORT", "8000"))
 
-# Парсим IS_POLLING как bool: поддерживаем "0"/"1", "true"/"false"
 IS_POLLING = os.getenv("IS_POLLING", "1").strip().lower() in ("1", "true", "yes", "on")
 
-# Проверка обязательных переменных
 if not REDIS_URL:
     raise ValueError("❌ REDIS_URL is required")
+if not IS_POLLING and (not BASE_URL or not WEBHOOK_PATH):
+    raise ValueError("❌ Webhook mode requires WEBHOOK_BASE_URL and WEBHOOK_PATH")
 
-if not IS_POLLING:
-    if not BASE_URL or not WEBHOOK_PATH:
-        raise ValueError("❌ Webhook mode requires WEBHOOK_BASE_URL and WEBHOOK_PATH")
-
-
-# === Глобальный планировщик сообщений ===
-scheduler = RedisMessageScheduler(
-    redis_url=REDIS_URL,
-    check_interval=1.0
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 
-# === Обработчики событий жизненного цикла ===
-async def on_startup(bot: Bot) -> None:
+# === 1. Сама логика On Startup ===
+async def on_startup(bot: Bot, scheduler: AsyncIOScheduler) -> None:
+    """Основная логика запуска: БД, Шедулер, Задачи"""
     await init_db()
-    logging.info("✅ Database tables initialized")
+    logger.info("✅ Database initialized")
 
-    await scheduler.initialize()
-    scheduler.start_worker(bot)
-    logging.info("✅ Scheduler worker started")
+    # Конфигурация шедулера
+    scheduler.configure(job_defaults={
+        'coalesce': False,
+        'max_instances': 1,
+        'misfire_grace_time': 60
+    })
 
+    scheduler.add_job(
+        func=daily_evening_message,       # Твоя функция из tasks.py
+        trigger='cron',                 # Тип: расписание (как крон в Linux)
+        hour=17,                        # Час в UTC (17:00 UTC = 20:00 Москва)
+        minute=0,                       # Минуты
+        second=0,                       # Секунды (опционально)
+        id='daily_evening_report',      # Уникальный ID задачи
+        kwargs={'bot': bot},            # Передаем только бота (сессия создается внутри функции)
+        replace_existing=True,          # Перезаписать, если задача с таким ID уже есть
+        misfire_grace_time=None         # Не выполнять, если бот был выключен в это время
+    )
+    
+    scheduler.start()
+    logger.info("✅ Scheduler started")
+
+    # Webhook логика
     if not IS_POLLING:
         webhook_url = f"{BASE_URL}{WEBHOOK_PATH}"
         await bot.set_webhook(webhook_url)
-        logging.info(f"✅ Webhook set to {webhook_url}")
+        logger.info(f"✅ Webhook set: {webhook_url}")
 
-    await bot.send_message(chat_id=ADMIN_ID, text="✅ Бот запущен!")
+    # Уведомление админа
+    try:
+        await bot.send_message(ADMIN_ID, "✅ Бот запущен!")
+    except Exception as e:
+        logger.warning(f"Не удалось отправить сообщение админу: {e}")
 
 
-async def on_shutdown(bot: Bot) -> None:
-    scheduler.stop_worker()
-    await scheduler.close()
-
-    await bot.send_message(chat_id=ADMIN_ID, text="🛑 Бот остановлен!")
+# === 2. Логика On Shutdown ===
+async def on_shutdown(bot: Bot, scheduler: AsyncIOScheduler, redis: Redis) -> None:
+    """Логика остановки"""
+    logger.info("🛑 Shutting down...")
+    scheduler.shutdown()
+    await redis.close()
     await bot.delete_webhook(drop_pending_updates=True)
+    try:
+        await bot.send_message(ADMIN_ID, "🛑 Бот остановлен!")
+    except Exception:
+        pass
 
 
-# === Создание диспетчера (вынесено для DRY) ===
+# === 3. Фабрики-обертки
+def make_startup_handler(scheduler: AsyncIOScheduler):
+    async def handler(bot: Bot):
+        await on_startup(bot, scheduler)
+    return handler
+
+def make_shutdown_handler(scheduler: AsyncIOScheduler, redis: Redis):
+    async def handler(bot: Bot):
+        await on_shutdown(bot, scheduler, redis)
+    return handler
+
+
+# === 4. Фабрика Диспетчера ===
 def create_dispatcher() -> Dispatcher:
     redis_client = Redis.from_url(REDIS_URL)
     storage = RedisStorage(redis=redis_client)
     dp = Dispatcher(storage=storage)
-    dp["session_maker"] = AsyncSessionLocal
-
+    
+    scheduler = AsyncIOScheduler(timezone='UTC')
+    
+    dp.update.middleware(SchedulerMiddleware(scheduler))
     dp.update.middleware(DbSessionMiddleware(AsyncSessionLocal))
     dp.update.middleware(RegistrationMiddleware())
-    dp.update.middleware(SchedulerMiddleware(scheduler))
+    
     dp.include_router(router)
-
-    dp.startup.register(on_startup)
-    dp.shutdown.register(on_shutdown)
-
+    
+    # Регистрируем обертки, которые вызовут наши функции
+    dp.startup.register(make_startup_handler(scheduler))
+    dp.shutdown.register(make_shutdown_handler(scheduler, redis_client))
+    
     return dp
 
 
-# === Режим: Long Polling ===
+# === Режимы запуска ===
 async def run_polling():
-    # 🔥 Критически важно: удалить webhook перед polling
     await bot.delete_webhook(drop_pending_updates=True)
-    logging.info("🧹 Webhook deleted (if any)")
-
+    logger.info("🧹 Webhook deleted")
     dp = create_dispatcher()
     await dp.start_polling(bot)
 
-
-# === Режим: Webhook ===
 def run_webhook():
     dp = create_dispatcher()
-
     app = web.Application()
     SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
     setup_application(app, dp, bot=bot)
-
-    logging.info(f"🚀 Starting webhook server on http://{HOST}:{PORT}{WEBHOOK_PATH}")
+    logger.info(f"🚀 Webhook server running on http://{HOST}:{PORT}{WEBHOOK_PATH}")
     web.run_app(app, host=HOST, port=PORT)
 
-
-# === Точка входа ===
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
-    )
-
     try:
         if IS_POLLING:
             asyncio.run(run_polling())
         else:
             run_webhook()
     except (KeyboardInterrupt, SystemExit):
-        logging.info("🛑 Received shutdown signal")
+        logger.info("🛑 Shutdown signal received")

@@ -5,7 +5,6 @@ import logging
 from aiogram.enums import ChatAction
 from ..states.states import UserNameState, WorryState
 from bot.database.utils.update_user_field import update_user_fields
-from sqlalchemy.ext.asyncio import AsyncSession
 from bot.ai.utils.chat import get_ai_response
 from ..keyboards.inline_keyboards import hard_time_keyboard, worry_keyboard, set_settings_keyboard
 from ..keyboards.inline_keyboards import (
@@ -71,7 +70,7 @@ async def process_hard_time(callback: CallbackQuery, state: FSMContext):
 
 # --- Шаг 3: Выбор беспокойства (готовые варианты) ---
 
-async def _completion_onboarding(bot: Bot, state: FSMContext, telegram_id: int, worry: str, session: AsyncSession):
+async def _completion_onboarding(bot: Bot, state: FSMContext, telegram_id: int, worry: str):
     data = await state.get_data()
     name = data["name"]
     hard_time = {
@@ -84,7 +83,7 @@ async def _completion_onboarding(bot: Bot, state: FSMContext, telegram_id: int, 
     logging.debug(f"Данные для записи: {name}, {hard_time}, {worry}")
 
     res = await update_user_fields(
-        session=session,
+        
         telegram_id=telegram_id,
         name=name,
         hard_time=hard_time,
@@ -126,7 +125,7 @@ async def _completion_onboarding(bot: Bot, state: FSMContext, telegram_id: int, 
         DISCIPLINE_CALL
     ])
 )
-async def process_worry_choice(callback: CallbackQuery, state: FSMContext, session: AsyncSession, bot: Bot):
+async def process_worry_choice(callback: CallbackQuery, state: FSMContext, bot: Bot):
     telegram_id = callback.from_user.id
     worry_mapping = {
         LONELINESS_CALL: "Одиночество",
@@ -140,7 +139,7 @@ async def process_worry_choice(callback: CallbackQuery, state: FSMContext, sessi
 
     await callback.message.delete()
 
-    await _completion_onboarding(bot=bot, state=state, telegram_id=telegram_id, worry=worry, session=session)
+    await _completion_onboarding(bot=bot, state=state, telegram_id=telegram_id, worry=worry)
 
 
 # --- Шаг 3: "Другое" → ожидание текста ---
@@ -156,7 +155,7 @@ async def process_worry_other(callback: CallbackQuery, state: FSMContext):
 
 # --- Обработка кастомного текста ---
 @router.message(WorryState.entering_custom_worry)
-async def process_custom_worry(message: Message, state: FSMContext, session: AsyncSession, bot: Bot):
+async def process_custom_worry(message: Message, state: FSMContext, bot: Bot):
     telegram_id = message.from_user.id
     custom_worry = message.text.strip()
     if not custom_worry:
@@ -167,4 +166,4 @@ async def process_custom_worry(message: Message, state: FSMContext, session: Asy
     message_id = data.get("message_id")
     await bot.delete_messages(chat_id=telegram_id, message_ids=(message.message_id, message_id))
 
-    await _completion_onboarding(bot=bot, state=state, telegram_id=telegram_id, worry=custom_worry, session=session)
+    await _completion_onboarding(bot=bot, state=state, telegram_id=telegram_id, worry=custom_worry)

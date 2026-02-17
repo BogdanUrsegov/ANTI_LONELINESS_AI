@@ -1,6 +1,5 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.database.utils.update_user_field import update_user_fields
 from bot.database.utils.get_user_field import get_user_field
@@ -44,10 +43,10 @@ async def show_reminder_slot_selection(callback: CallbackQuery):
 
 # --- Утро ---
 @router.callback_query(F.data == MORNING_MESSAGES_CALL)
-async def handle_morning_selection(callback: CallbackQuery, session: AsyncSession):
+async def handle_morning_selection(callback: CallbackQuery):
     telegram_id = callback.from_user.id
-    is_enabled = await get_user_field(session, telegram_id, "notify_morning") or False
-    notify_morning_time = await get_user_field(session, telegram_id, "notify_morning_time")
+    is_enabled = await get_user_field(telegram_id, "notify_morning") or False
+    notify_morning_time = await get_user_field(telegram_id, "notify_morning_time")
     logging.debug(f"Выбранное время: {notify_morning_time}")
     await callback.message.edit_text(
         "🌅 <b>Утренние напоминания</b>\n\n"
@@ -59,8 +58,8 @@ async def handle_morning_selection(callback: CallbackQuery, session: AsyncSessio
 
 # --- Вечер ---
 @router.callback_query(F.data == NIGHT_MESSAGES_CALL)
-async def handle_evening_selection(callback: CallbackQuery, session: AsyncSession):
-    is_enabled = await get_user_field(session, callback.from_user.id, "notify_evening") or False
+async def handle_evening_selection(callback: CallbackQuery):
+    is_enabled = await get_user_field(callback.from_user.id, "notify_evening") or False
     await callback.message.edit_text(
         "🌃 <b>Вечерние напоминания</b>\n\n"
         "Хочешь получать сообщения вечером?",
@@ -71,8 +70,8 @@ async def handle_evening_selection(callback: CallbackQuery, session: AsyncSessio
 
 # --- День ---
 @router.callback_query(F.data == DAILY_MESSAGES_CALL)
-async def handle_daytime_selection(callback: CallbackQuery, session: AsyncSession):
-    daytime_mode = await get_user_field(session, callback.from_user.id, "notify_day_touches")
+async def handle_daytime_selection(callback: CallbackQuery):
+    daytime_mode = await get_user_field(callback.from_user.id, "notify_day_touches")
     await callback.message.edit_text(
         "🏙 <b>Дневные касания</b>\n\n"
         "Иногда я могу написать днём — коротко и бережно.\n"
@@ -84,12 +83,12 @@ async def handle_daytime_selection(callback: CallbackQuery, session: AsyncSessio
 
 # --- Переключение утра ---
 @router.callback_query(F.data.in_({MORNING_ON_CALL, MORNING_OFF_CALL}))
-async def toggle_morning(callback: CallbackQuery, session: AsyncSession):
+async def toggle_morning(callback: CallbackQuery):
     telegram_id = callback.from_user.id
     is_now_enabled = callback.data == MORNING_ON_CALL
-    notify_morning_time = await get_user_field(session, telegram_id, "notify_morning_time")
+    notify_morning_time = await get_user_field(telegram_id, "notify_morning_time")
     await update_user_fields(
-        session=session,
+        
         telegram_id=callback.from_user.id,
         notify_morning=is_now_enabled
     )
@@ -101,7 +100,7 @@ async def toggle_morning(callback: CallbackQuery, session: AsyncSession):
 
 # --- Выбор утреннего времени ---
 @router.callback_query(F.data.in_({TIME_7_830_CALL, TIME_830_10_CALL, TIME_10_1130_CALL}))
-async def set_morning_time(callback: CallbackQuery, session: AsyncSession):
+async def set_morning_time(callback: CallbackQuery):
     time_map = {
         TIME_7_830_CALL: "07:00",
         TIME_830_10_CALL: "08:30",
@@ -109,7 +108,7 @@ async def set_morning_time(callback: CallbackQuery, session: AsyncSession):
     }
     selected_time = time_map[callback.data]
     await update_user_fields(
-        session=session,
+        
         telegram_id=callback.from_user.id,
         notify_morning_time=selected_time
     )
@@ -124,10 +123,10 @@ async def set_morning_time(callback: CallbackQuery, session: AsyncSession):
 
 # --- Переключение вечера ---
 @router.callback_query(F.data.in_({EVENING_ON_CALL, EVENING_OFF_CALL}))
-async def toggle_evening(callback: CallbackQuery, session: AsyncSession):
+async def toggle_evening(callback: CallbackQuery):
     is_now_enabled = callback.data == EVENING_ON_CALL
     await update_user_fields(
-        session=session,
+        
         telegram_id=callback.from_user.id,
         notify_evening=is_now_enabled
     )
@@ -139,10 +138,10 @@ async def toggle_evening(callback: CallbackQuery, session: AsyncSession):
 
 # --- Выбор режима дня ---
 @router.callback_query(F.data.in_({DAYTIME_RARE_CALL, DAYTIME_NONE_CALL}))
-async def set_daytime_mode(callback: CallbackQuery, session: AsyncSession):
+async def set_daytime_mode(callback: CallbackQuery):
     is_rare = callback.data == DAYTIME_RARE_CALL
     await update_user_fields(
-        session=session,
+        
         telegram_id=callback.from_user.id,
         notify_day_touches=is_rare
     )

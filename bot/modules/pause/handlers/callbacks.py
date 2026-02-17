@@ -1,5 +1,4 @@
 from aiogram import F, Router, types
-from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram.fsm.context import FSMContext
 from ..keyboards.inline_keyboards import pause_period_kb, PAUSE_1D_CALL, PAUSE_FOREVER_CALL, PAUSE_WEEK_CALL
 from bot.modules.main_menu import PAUSE_CALL
@@ -9,7 +8,7 @@ router = Router()
 
 
 @router.callback_query(F.data == PAUSE_CALL)
-async def callback_menu(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession):
+async def callback_menu(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         "<b>Иногда полезно сделать паузу</b>\n\n"
 
@@ -19,7 +18,7 @@ async def callback_menu(callback: types.CallbackQuery, state: FSMContext, sessio
 
 
 @router.callback_query(F.data == PAUSE_1D_CALL)
-async def pause_1d(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession):
+async def pause_1d(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
     await callback.message.edit_text(
         "⏸️ <b>Пауза на 1 день</b>\n\n"
@@ -29,7 +28,7 @@ async def pause_1d(callback: types.CallbackQuery, state: FSMContext, session: As
 
 
 @router.callback_query(F.data == PAUSE_WEEK_CALL)
-async def pause_week(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession):
+async def pause_week(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
     await callback.message.edit_text(
         "⏸️ <b>Пауза на неделю</b>\n\n"
@@ -39,7 +38,7 @@ async def pause_week(callback: types.CallbackQuery, state: FSMContext, session: 
 
 
 @router.callback_query(F.data == PAUSE_FOREVER_CALL)
-async def pause_forever(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession):
+async def pause_forever(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
     await callback.message.edit_text(
         "⏸️ <b>Пауза на неопределённое время</b>\n\n"
