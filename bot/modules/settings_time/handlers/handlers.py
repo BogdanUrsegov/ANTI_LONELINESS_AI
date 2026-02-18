@@ -183,7 +183,7 @@ async def _finish_setup(callback: CallbackQuery, state: FSMContext, scheduler: A
         trigger='date',                # Тип: однократный запуск в дату
         run_date=run_time,             # Конкретное время запуска
         id=job_id,                     # ID для управления
-        kwargs={'bot': callback.bot, 'user_id': user_id},
+        kwargs={'user_id': user_id},
         replace_existing=True
     )
 

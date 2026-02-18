@@ -14,7 +14,7 @@ from bot.database.session import AsyncSessionLocal, init_db
 from bot.middlewares.scheduler import SchedulerMiddleware
 from bot.middlewares.db import DbSessionMiddleware
 from bot.middlewares.registration import RegistrationMiddleware
-from bot.scheduler.tasks import daily_evening_message, run_daily_aggregation
+from bot.scheduler.tasks import daily_evening_message, daily_day_touches_message, daily_morning_message
 from .create_bot import bot, ADMIN_ID
 from .routers import router
 
@@ -32,7 +32,7 @@ if not REDIS_URL:
 if not IS_POLLING and (not BASE_URL or not WEBHOOK_PATH):
     raise ValueError("❌ Webhook mode requires WEBHOOK_BASE_URL and WEBHOOK_PATH")
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -50,15 +50,33 @@ async def on_startup(bot: Bot, scheduler: AsyncIOScheduler) -> None:
     })
 
     scheduler.add_job(
-        func=daily_evening_message,       # Твоя функция из tasks.py
+        func=daily_evening_message,     # Функция из tasks.py
         trigger='cron',                 # Тип: расписание (как крон в Linux)
-        hour=17,                        # Час в UTC (17:00 UTC = 20:00 Москва)
+        hour=16,                        # Час в UTC (16:00 UTC = 19:00 Москва)
         minute=0,                       # Минуты
-        second=0,                       # Секунды (опционально)
         id='daily_evening_report',      # Уникальный ID задачи
-        kwargs={'bot': bot},            # Передаем только бота (сессия создается внутри функции)
         replace_existing=True,          # Перезаписать, если задача с таким ID уже есть
         misfire_grace_time=None         # Не выполнять, если бот был выключен в это время
+    )
+
+    scheduler.add_job(
+        func=daily_day_touches_message,
+        trigger='cron',
+        hour=11,                        # Час в UTC (11:00 UTC = 14:00 Москва)
+        minute=0,
+        id='daily_day_touches_report',
+        replace_existing=True,
+        misfire_grace_time=None
+    )
+
+    scheduler.add_job(
+        func=daily_morning_message,
+        trigger='cron',
+        hour=6,                        # Час в UTC (6:00 UTC = 9:00 Москва)
+        minute=0,
+        id='daily_morning_report',
+        replace_existing=True,
+        misfire_grace_time=None
     )
     
     scheduler.start()
@@ -109,6 +127,7 @@ def create_dispatcher() -> Dispatcher:
     dp = Dispatcher(storage=storage)
     
     scheduler = AsyncIOScheduler(timezone='UTC')
+
     
     dp.update.middleware(SchedulerMiddleware(scheduler))
     dp.update.middleware(DbSessionMiddleware(AsyncSessionLocal))

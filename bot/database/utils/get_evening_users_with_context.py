@@ -1,86 +1,111 @@
 import logging
 from sqlalchemy import select
-from typing import List, Tuple, Dict, Any
+from typing import List, Dict, Any, Optional
 from collections import defaultdict
 
 from bot.database.session import AsyncSessionLocal
 from ..models import User, ChatMessage
-from datetime import datetime
-
 
 logger = logging.getLogger(__name__)
 
+# Тип возвращаемого элемента для ясности
+UserContextData = Dict[str, Any]
 
 async def get_evening_users_with_context(
     messages_limit: int = 15
-) -> List[Tuple[int, str, List[Dict[str, Any]]]]:
+) -> List[UserContextData]:
     """
-    Возвращает список пользователей с включенным notify_evening и их историей сообщений.
+    Возвращает список пользователей с включенным notify_evening и их контекстом.
     
     Returns:
-        Список кортежей: (telegram_id, name, [список сообщений])
-        где сообщение — это dict: {'role': 'user'|'assistant', 'content': '...'}
-        Сообщения отсортированы по времени (от старых к новым).
+        Список словарей вида:
+        {
+            "telegram_id": int,
+            "name": str | None,
+            "archetype": str | None,
+            "main_topic": str | None,
+            "history": [{"role": str, "content": str}, ...]
+        }
+        История сообщений отсортирована по времени (от старых к новым).
     """
     
-    # 1. Получаем ID и имена пользователей, у которых notify_evening = True
     async with AsyncSessionLocal() as session:
         try:
-            stmt_users = select(User.telegram_id, User.name).where(
+            # 1. Получаем ID и дополнительные поля пользователей
+            stmt_users = select(
+                User.telegram_id, 
+                User.name, 
+                User.archetype, 
+                User.main_topic
+            ).where(
                 User.notify_evening.is_(True)
             )
+            
             result_users = await session.execute(stmt_users)
             users_data = result_users.all()
             
             if not users_data:
                 return []
 
-            # Создаем мапу для быстрого доступа и сохранения порядка/имен
-            # telegram_id -> name
-            user_names_map = {row.telegram_id: row.name for row in users_data}
-            target_telegram_ids = list(user_names_map.keys())
+            # Мапа: telegram_id -> {name, archetype, main_topic}
+            user_info_map: Dict[int, Dict[str, Optional[str]]] = {}
+            target_telegram_ids = []
 
-            # 2. Одним запросом получаем историю сообщений для ВСЕХ этих пользователей
-            # Выбираем только нужные поля для экономии памяти
+            for row in users_data:
+                t_id = row.telegram_id
+                target_telegram_ids.append(t_id)
+                user_info_map[t_id] = {
+                    "name": row.name,
+                    "archetype": row.archetype,
+                    "main_topic": row.main_topic
+                }
+
+            # 2. Получаем историю сообщений для всех выбранных пользователей одним запросом
             stmt_messages = (
                 select(ChatMessage.telegram_id, ChatMessage.role, ChatMessage.content)
                 .where(ChatMessage.telegram_id.in_(target_telegram_ids))
-                .order_by(ChatMessage.telegram_id, ChatMessage.created_at.desc()) # Сортируем для удобной группировки
+                .order_by(ChatMessage.telegram_id, ChatMessage.created_at.desc()) 
             )
             
             result_messages = await session.execute(stmt_messages)
             all_messages = result_messages.all()
 
-            # 3. Группируем сообщения по telegram_id в памяти
-            # Структура: { telegram_id: [ (role, content), ... ] }
-            grouped_messages: Dict[int, List[Tuple[str, str]]] = defaultdict(list)
+            # 3. Группируем сообщения по telegram_id
+            grouped_messages: Dict[int, List[tuple[str, str]]] = defaultdict(list)
             
             for msg in all_messages:
-                # msg.telegram_id, msg.role, msg.content
                 grouped_messages[msg.telegram_id].append((msg.role, msg.content))
 
-            # 4. Формируем финальный результат
-            final_result: List[Tuple[int, str, List[Dict[str, Any]]]] = []
+            # 4. Формируем финальный список словарей
+            final_result: List[UserContextData] = []
             
             for t_id in target_telegram_ids:
                 raw_msgs = grouped_messages.get(t_id, [])
                 
-                # Берем только последние N сообщений (так как сортировка была DESC, берем срез [:limit])
+                # Берем последние N сообщений (так как сортировка DESC, берем срез)
                 limited_raw = raw_msgs[:messages_limit]
                 
-                # Разворачиваем обратно в хронологический порядок (ASC) для корректного контекста ИИ
+                # Разворачиваем в хронологический порядок (ASC)
                 limited_raw.reverse()
                 
-                # Преобразуем кортежи в словари для удобства использования в промптах
-                context_list = [
+                # Преобразуем в список словарей для истории
+                history_list = [
                     {"role": role, "content": content} 
                     for role, content in limited_raw
                 ]
                 
-                name = user_names_map.get(t_id, "Пользователь")
-                final_result.append((t_id, name, context_list))
+                info = user_info_map.get(t_id, {})
+                
+                final_result.append({
+                    "telegram_id": t_id,
+                    "name": info.get("name"),
+                    "archetype": info.get("archetype"),
+                    "main_topic": info.get("main_topic"),
+                    "history": history_list
+                })
 
             return final_result
+
         except Exception as e:
             logger.error(f"Ошибка get_evening_users_with_context: {e}")
             await session.rollback()

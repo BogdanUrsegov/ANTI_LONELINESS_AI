@@ -28,9 +28,9 @@ async def handle_ai_query(message: Message, bot: Bot):
         # 3. Сохраняем сообщения
         await save_message(telegram_id, "user", user_text, None)
         await save_message(telegram_id, "assistant", ai_response, None)
-
+        reply_markup = None
         # 4. Отправляем пользователю
-        await message.answer(ai_response)
+        await message.answer(ai_response, reply_markup=reply_markup)
     except Exception as e:
         logging.error(f"Ошибка при отправке ответа для {telegram_id} от ии: {e}")
         await message.answer("<i>Мой дорогой друг, при создании ответа для тебя произошла ошибка. Я попробую ответить как можно скорее!</i>")

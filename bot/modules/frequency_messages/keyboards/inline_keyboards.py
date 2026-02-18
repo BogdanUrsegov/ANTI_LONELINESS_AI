@@ -26,7 +26,7 @@ DAILY_MESSAGES_CALL = "daily_messages"
 
 reminder_slot_selection_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🌅 Утро", callback_data=MORNING_MESSAGES_CALL)],
-        [InlineKeyboardButton(text="🌃 Ночь", callback_data=NIGHT_MESSAGES_CALL)],
+        [InlineKeyboardButton(text="🌃 Вечер", callback_data=NIGHT_MESSAGES_CALL)],
         [InlineKeyboardButton(text="🏙 День", callback_data=DAILY_MESSAGES_CALL)],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data=MAIN_MENU_CALL)]
     ])
