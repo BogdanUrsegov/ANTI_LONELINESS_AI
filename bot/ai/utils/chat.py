@@ -66,7 +66,9 @@ async def generate_personalized_ai_response(
                 "/chat/completions",
                 json={
                     "model": model,
-                    "messages": full_context
+                    "messages": full_context,
+                    "temperature": 0.7,
+                    "max_tokens": 2500
                 }
             )
             response.raise_for_status()
