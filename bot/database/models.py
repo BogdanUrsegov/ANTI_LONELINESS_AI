@@ -1,9 +1,17 @@
-from typing import Optional
+from typing import Literal, Optional, get_args
 from sqlalchemy import JSON, ForeignKey, Integer, DateTime, BigInteger, String, Boolean, Text, Index
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import datetime
 
+
+NotifyField = Literal["notify_morning", "notify_evening", "notify_day_touches"]
+
+NOTIFY_CONFIG: dict[NotifyField, str] = {
+    "notify_morning": "09:00", 
+    "notify_evening": "19:00", 
+    "notify_day_touches": "14:00"
+}
 
 class Base(DeclarativeBase):
     """Базовый класс для всех моделей SQLAlchemy."""
@@ -29,7 +37,6 @@ class User(Base):
     notify_day_touches: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
     
     is_complete: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
-
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"

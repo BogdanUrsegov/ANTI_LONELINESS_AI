@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import os
+from typing import get_args
+from zoneinfo import ZoneInfo
 from aiohttp import web
 from redis.asyncio import Redis
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -14,12 +16,15 @@ from bot.database.session import AsyncSessionLocal, init_db
 from bot.middlewares.scheduler import SchedulerMiddleware
 from bot.middlewares.db import DbSessionMiddleware
 from bot.middlewares.registration import RegistrationMiddleware
-from bot.scheduler.tasks import daily_evening_message, daily_day_touches_message, daily_morning_message
+from bot.middlewares.logging import ChannelLoggerMiddleware
+from bot.database.models import NOTIFY_CONFIG, NotifyField
+from bot.scheduler.tasks import daily_messages
 from .create_bot import bot, ADMIN_ID
 from .routers import router
 
 # === Настройки ===
 REDIS_URL = os.getenv("REDIS_URL")
+LOG_CHANNEL_ID = os.getenv("LOG_CHANNEL_ID")
 WEBHOOK_PATH = os.getenv("WEBHOOK_PATH", "/webhook")
 BASE_URL = os.getenv("WEBHOOK_BASE_URL", "")
 HOST = os.getenv("WEBHOOK_HOST", "0.0.0.0")
@@ -48,36 +53,22 @@ async def on_startup(bot: Bot, scheduler: AsyncIOScheduler) -> None:
         'max_instances': 1,
         'misfire_grace_time': 60
     })
-
-    scheduler.add_job(
-        func=daily_evening_message,     # Функция из tasks.py
-        trigger='cron',                 # Тип: расписание (как крон в Linux)
-        hour=16,                        # Час в UTC (16:00 UTC = 19:00 Москва)
-        minute=0,                       # Минуты
-        id='daily_evening_report',      # Уникальный ID задачи
-        replace_existing=True,          # Перезаписать, если задача с таким ID уже есть
-        misfire_grace_time=None         # Не выполнять, если бот был выключен в это время
-    )
-
-    scheduler.add_job(
-        func=daily_day_touches_message,
-        trigger='cron',
-        hour=11,                        # Час в UTC (11:00 UTC = 14:00 Москва)
-        minute=0,
-        id='daily_day_touches_report',
-        replace_existing=True,
-        misfire_grace_time=None
-    )
-
-    scheduler.add_job(
-        func=daily_morning_message,
-        trigger='cron',
-        hour=6,                        # Час в UTC (6:00 UTC = 9:00 Москва)
-        minute=0,
-        id='daily_morning_report',
-        replace_existing=True,
-        misfire_grace_time=None
-    )
+    
+    tz = ZoneInfo("Europe/Moscow")
+    for field_name in get_args(NotifyField):
+        time_str = NOTIFY_CONFIG[field_name]
+        hour, minute = map(int, time_str.split(':'))
+        scheduler.add_job(
+            func=daily_messages,
+            trigger='cron',
+            hour=hour,
+            minute=minute,
+            id=f'daily_{field_name}_report',
+            kwargs={'period': field_name},
+            timezone=tz,
+            replace_existing=True,
+            misfire_grace_time=None
+        )
     
     scheduler.start()
     logger.info("✅ Scheduler started")
@@ -132,6 +123,7 @@ def create_dispatcher() -> Dispatcher:
     dp.update.middleware(SchedulerMiddleware(scheduler))
     dp.update.middleware(DbSessionMiddleware(AsyncSessionLocal))
     dp.update.middleware(RegistrationMiddleware())
+    dp.update.middleware(ChannelLoggerMiddleware(channel_id=LOG_CHANNEL_ID))
     
     dp.include_router(router)
     
