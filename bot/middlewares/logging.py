@@ -48,12 +48,14 @@ class ChannelLoggerMiddleware(BaseMiddleware):
                 action_text = f"💬 {event.message.text or '[без текста]'}"
             elif event.callback_query:
                 action_text = f"🔘 {event.callback_query.data}"
-
+            bot_info = await bot.get_me()
+            username = bot_info.username
             log_message = (
                 f"👤 <b>Пользователь:</b> {user.full_name} (@{user.username or '—'})\n"
                 f"🆔 <b>ID:</b> {user.id}\n"
                 f"📅 <b>Время:</b> {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}\n"
-                f"📝 <b>Действие:</b> {action_text}"
+                f"📝 <b>Действие:</b> {action_text}\n\n"
+                f"🤖 <b>Бот: </b> @{username}"
             )
 
             await bot.send_message(
@@ -70,10 +72,11 @@ class ChannelLoggerMiddleware(BaseMiddleware):
             user = event.from_user
             error_type = type(error).__name__
             error_message = str(error)
-            
+            bot_info = await bot.get_me()
+            username = bot_info.username
             # Формируем понятное сообщение об ошибке
             log_message = (
-                f"❌ <b>Ошибка в боте</b>\n\n"
+                f"❌ <b>Ошибка в боте</b> @{username}\n\n"
                 f"👤 <b>Пользователь:</b> {user.full_name} (@{user.username})\n"
                 f"🆔 <b>ID:</b> {user.id}\n"
                 f"📅 <b>Время:</b> {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}\n\n"
