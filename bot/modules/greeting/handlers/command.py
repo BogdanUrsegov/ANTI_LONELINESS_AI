@@ -19,7 +19,7 @@ async def cmd_start(message: types.Message):
             )
 
     # Проверяем, существует ли пользователь
-    is_user = await user_checker(telegram_id)
+    is_user = await user_checker(telegram_id, 1)
 
     if not is_user:
         # Создаём нового пользователя

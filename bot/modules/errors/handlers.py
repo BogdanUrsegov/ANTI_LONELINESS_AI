@@ -6,7 +6,7 @@ from aiogram.types import ErrorEvent, Message, CallbackQuery
 from aiogram.filters import ExceptionTypeFilter
 
 # 1. Настройка стандартного логгера (файл + консоль)
-logging.basicConfig(level=logging.INFO, filename="bot.log", format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
