@@ -17,6 +17,7 @@ from bot.middlewares.scheduler import SchedulerMiddleware
 from bot.middlewares.db import DbSessionMiddleware
 from bot.middlewares.registration import RegistrationMiddleware
 from bot.middlewares.logging import ChannelLoggerMiddleware
+from bot.modules.errors import errors_handler
 from bot.database.models import NOTIFY_CONFIG, NotifyField
 from bot.scheduler.tasks import daily_messages
 from .create_bot import bot, ADMIN_ID
@@ -124,6 +125,7 @@ def create_dispatcher() -> Dispatcher:
     dp.update.middleware(DbSessionMiddleware(AsyncSessionLocal))
     dp.update.middleware(RegistrationMiddleware())
     dp.update.middleware(ChannelLoggerMiddleware(channel_id=LOG_CHANNEL_ID))
+    dp.errors.register(errors_handler) 
     
     dp.include_router(router)
     

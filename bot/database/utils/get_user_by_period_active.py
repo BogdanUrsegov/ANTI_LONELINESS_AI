@@ -1,5 +1,6 @@
+from datetime import datetime, timezone
 import logging
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from typing import List, Dict, Any, Optional
 from collections import defaultdict
 
@@ -32,14 +33,21 @@ async def get_user_by_period_active(
     
     async with AsyncSessionLocal() as session:
         try:
-            # 1. Получаем ID и дополнительные поля пользователей
+            now_utc = datetime.now(timezone.utc)
             notify_column = getattr(User, field_name)
+
             stmt_users = select(
                 User.telegram_id, 
                 User.name, 
                 User.archetype, 
                 User.main_topic
-            ).where(notify_column.is_(True))
+            ).where(
+                notify_column.is_(True),
+                or_(
+                    User.pause_until.is_(None),       # Пауза не установлена
+                    User.pause_until < now_utc        # Пауза уже истекла
+                )
+            )
             
             result_users = await session.execute(stmt_users)
             users_data = result_users.all()

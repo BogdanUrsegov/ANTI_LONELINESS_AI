@@ -30,6 +30,8 @@ class User(Base):
     hard_time: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     main_topic: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
+    pause_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Настройки уведомлений
     notify_morning: Mapped[Optional[bool]] = mapped_column(Boolean, default=False)
     notify_morning_time: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)  # HH:MM
