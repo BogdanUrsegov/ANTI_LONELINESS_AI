@@ -19,7 +19,7 @@ pause_period_kb = InlineKeyboardMarkup(
 
 remove_pause_kb = InlineKeyboardMarkup(
     inline_keyboard=[
-        [InlineKeyboardButton(text="⏩ Снять с паузы", callback_data=REMOVE_PAUSE_CALL)],
+        [InlineKeyboardButton(text="Снять с паузы ⏩", callback_data=REMOVE_PAUSE_CALL)],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data=MAIN_MENU_CALL)]
     ]
 )

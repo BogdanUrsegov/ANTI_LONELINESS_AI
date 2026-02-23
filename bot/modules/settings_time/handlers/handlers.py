@@ -5,7 +5,7 @@ from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from bot.database.utils.ai.context_manager import save_message
-from bot.scheduler.tasks import first_generated_message
+from bot.scheduler.tasks.first_generated_message import first_generated_message
 from bot.modules.main_menu import goto_main_menu_kb
 from ..states.states import NotificationSettings
 
