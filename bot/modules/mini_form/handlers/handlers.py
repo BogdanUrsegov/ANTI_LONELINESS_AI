@@ -93,7 +93,7 @@ async def _completion_onboarding(bot: Bot, state: FSMContext, telegram_id: int, 
     temp_mess = await bot.send_message(telegram_id, "⏳ Пожалуйста, дай мне время обдумать...")
 
     text_pattern = (
-            f"Спасибо, что рассказал(а) мне это, {name}.\n\n"
+            f"Спасибо, что рассказал мне это, {name}.\n\n"
 
             f"Я буду рядом с тобой, особенно в те моменты, когда тебе труднее всего — {hard_time}.\n\n"
 
