@@ -76,4 +76,4 @@ async def generate_personalized_ai_response(
             content = data["choices"][0]["message"]["content"]
             return content.strip()
         except Exception as e:
-            raise RuntimeError(f"Ошибка генерации ответа ИИ: {str(e)}")
+            print(e)
