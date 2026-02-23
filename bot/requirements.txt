@@ -4,6 +4,8 @@ aiohttp==3.9.5
 asyncpg==0.31.0
 sqlalchemy[asyncio]==2.0.30
 redis==7.1.0
+psycopg2-binary
+alembic
 asyncpg
 openai
 aioredis

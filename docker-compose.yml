@@ -8,7 +8,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      - .:/app
       - ./bot:/app/bot
+      - ./alembic:/app/alembic 
     depends_on:
       - db
       - cache
