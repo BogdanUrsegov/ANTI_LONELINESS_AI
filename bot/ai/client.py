@@ -15,7 +15,7 @@ http_client = httpx.AsyncClient(
     base_url=AI_BASE_URL,
     headers={
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "http://localhost:8000",
+        "HTTP-Referer": "https://t.me/anti_loneliness_bot",
         "X-Title": "Anti-Loneliness AI",
     },
     timeout=30.0
