@@ -34,7 +34,6 @@ services:
   cache:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --requirepass StrongRedisPassword_2024! # 🔴 Добавил пароль
     volumes:
       - redis_data:/data
     networks:
