@@ -16,8 +16,6 @@ services:
       - cache
     restart: unless-stopped
     command: python -m bot.main
-    networks:
-      - bot_net
 
   db:
     image: postgres:16-alpine
@@ -25,24 +23,19 @@ services:
     environment:
       POSTGRES_DB: anti_loneliness_bot_db
       POSTGRES_USER: user
-      POSTGRES_PASSWORD: Ndgi23IOihgo7uygbhgofivkg2
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - bot_net
+    
 
   cache:
     image: redis:7-alpine
     restart: unless-stopped
     volumes:
       - redis_data:/data
-    networks:
-      - bot_net
-
+      
 volumes:
   postgres_data:
   redis_data:
-
-networks:
-  bot_net:
-    driver: bridge
